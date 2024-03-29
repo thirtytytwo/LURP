@@ -79,15 +79,14 @@ Shader "Hidden/Universal Render Pipeline/MyBloom"
 
             #pragma vertex Vert
             #pragma fragment Frag
-
-            float4 _RTTexelSize;
+            
             v2f_multi Vert(a2v i)
             {
                 v2f_multi o;
                 o.positionCS = o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
                 float2 uv = i.positionOS.xy * 0.5f + 0.5f;
-                o.texcoord0 = _RTTexelSize.xyxy * float4(-0.5, 0.5,-0.5,-0.5) + uv.xyxy;
-                o.texcoord1 = _RTTexelSize.xyxy * float4(0.5, -0.5, 0.5, 0.5) + uv.xyxy;
+                o.texcoord0 = _SourceTex_TexelSize.xyxy * float4(-0.5, 0.5,-0.5,-0.5) + uv.xyxy;
+                o.texcoord1 = _SourceTex_TexelSize.xyxy * float4(0.5, -0.5, 0.5, 0.5) + uv.xyxy;
                 return o;
             }
 

@@ -29,7 +29,8 @@ namespace UnityEngine.Rendering.Universal
         }
 
 
-        static Mesh s_FullscreenMesh = null;
+        static Mesh s_FullScreenMesh = null;
+        static Mesh s_FastFullScreenMesh = null;
 
         /// <summary>
         /// Returns a mesh that you can use with <see cref="CommandBuffer.DrawMesh(Mesh, Matrix4x4, Material)"/> to render full-screen effects.
@@ -38,14 +39,14 @@ namespace UnityEngine.Rendering.Universal
         {
             get
             {
-                if (s_FullscreenMesh != null)
-                    return s_FullscreenMesh;
+                if (s_FullScreenMesh != null)
+                    return s_FullScreenMesh;
 
                 float topV = 1.0f;
                 float bottomV = 0.0f;
 
-                s_FullscreenMesh = new Mesh { name = "Fullscreen Quad" };
-                s_FullscreenMesh.SetVertices(new List<Vector3>
+                s_FullScreenMesh = new Mesh { name = "Fullscreen Quad" };
+                s_FullScreenMesh.SetVertices(new List<Vector3>
                 {
                     new Vector3(-1.0f, -1.0f, 0.0f),
                     new Vector3(-1.0f,  1.0f, 0.0f),
@@ -53,7 +54,7 @@ namespace UnityEngine.Rendering.Universal
                     new Vector3(1.0f,  1.0f, 0.0f)
                 });
 
-                s_FullscreenMesh.SetUVs(0, new List<Vector2>
+                s_FullScreenMesh.SetUVs(0, new List<Vector2>
                 {
                     new Vector2(0.0f, bottomV),
                     new Vector2(0.0f, topV),
@@ -61,9 +62,30 @@ namespace UnityEngine.Rendering.Universal
                     new Vector2(1.0f, topV)
                 });
 
-                s_FullscreenMesh.SetIndices(new[] { 0, 1, 2, 2, 1, 3 }, MeshTopology.Triangles, 0, false);
-                s_FullscreenMesh.UploadMeshData(true);
-                return s_FullscreenMesh;
+                s_FullScreenMesh.SetIndices(new[] { 0, 1, 2, 2, 1, 3 }, MeshTopology.Triangles, 0, false);
+                s_FullScreenMesh.UploadMeshData(true);
+                return s_FullScreenMesh;
+            }
+        }
+        
+        public static Mesh fastfullscreenMesh
+        {
+            get
+            {
+                if (s_FastFullScreenMesh != null)
+                    return s_FastFullScreenMesh;
+                
+                s_FastFullScreenMesh = new Mesh { name = "Fast Fullscreen Triangle" };
+                s_FastFullScreenMesh.SetVertices(new List<Vector3>
+                {
+                    new Vector3(-1.0f, -1.0f, 0.0f),
+                    new Vector3(-1.0f,  3.0f, 0.0f),
+                    new Vector3(3.0f, -1.0f, 0.0f),
+                });
+
+                s_FastFullScreenMesh.SetIndices(new[] { 0, 1, 2 }, MeshTopology.Triangles, 0, false);
+                s_FastFullScreenMesh.UploadMeshData(true);
+                return s_FastFullScreenMesh;
             }
         }
 
