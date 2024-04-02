@@ -112,9 +112,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
 
             CBUFFER_START(UnityBloomAltlasParam)
             int    _LoopTime;
-            float2 _Direction;
-            float4 _ScaleParam[32];
-            float  _BlurKernel[32];
+            float4 _ScaleXYAndBlurKernals[16];
             CBUFFER_END
 
             v2f_single Vert(a2v i)
@@ -133,8 +131,8 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
                 UNITY_UNROLL
                 for (int i = 0; i <=_LoopTime; i++)
                 {
-                    newUV = _ScaleParam[i].xy * _Direction + input.uv;
-                    col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV) * _BlurKernel[i];
+                    newUV = _ScaleXYAndBlurKernals[i].xy * float2(1,0) + input.uv;
+                    col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV) * _ScaleXYAndBlurKernals[i].z;
                 }
                 //TODO:是否还需要一个整体的调整参数col *= 
                 return col;
@@ -153,8 +151,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             CBUFFER_START(UnityBloomAltlasParam)
             int    _LoopTime;
             float2 _Direction;
-            float4 _ScaleParam[16];
-            float  _BlurKernel[16];
+            float4 _ScaleXYAndBlurKernals[16];
             float4 _SampleEdge;
             float4 _UVScaleAndOffsetFrag;
             CBUFFER_END
@@ -173,13 +170,12 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
                 half4 col = 0;
                 float2 newUV = input.uv * _UVScaleAndOffsetFrag.xy + _UVScaleAndOffsetFrag.zw;
                 float2 sampleUV;
-                UNITY_UNROLL
                 for (int i = 0; i <=_LoopTime; i++)
                 {
-                    sampleUV = _ScaleParam[i].xy * _Direction + newUV;
+                    sampleUV = _ScaleXYAndBlurKernals[i].xy * float2(0,1)+ newUV;
                     sampleUV = max(sampleUV, _SampleEdge.xy);
                     sampleUV = min(sampleUV, _SampleEdge.zw);
-                    col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, sampleUV) * _BlurKernel[i];
+                    col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, sampleUV) * _ScaleXYAndBlurKernals[i].z;
                 }
                 //TODO:是否还需要一个整体的调整参数col *= 
                 return col;
