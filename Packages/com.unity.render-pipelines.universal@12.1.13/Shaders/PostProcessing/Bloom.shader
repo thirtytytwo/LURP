@@ -150,7 +150,6 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
 
             CBUFFER_START(UnityBloomAltlasParam)
             int    _LoopTime;
-            float2 _Direction;
             float4 _ScaleXYAndBlurKernals[16];
             float4 _SampleEdge;
             float4 _UVScaleAndOffsetFrag;
