@@ -1,0 +1,3 @@
+4.3 
+初步完成了Bloom的流程(差最终合并到uber)
+问题：blur vertical的时候存在数据不准确导致图片有leak，向下偏移

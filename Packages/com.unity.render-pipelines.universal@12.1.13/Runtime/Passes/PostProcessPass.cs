@@ -1247,6 +1247,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             #region Final Combine
 
             cmd.SetRenderTarget(ShaderConstants._BloomCombineRT, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+            cmd.SetGlobalTexture("_SourceTex", ShaderConstants._BloomAtlasRTs[1]);
             for (int i = 0; i < 4; i++)
             {
                 offset.x = (i == 0) ? 0 : (i % 2 == 0) ? offset.x : ShaderConstants._BloomDownSampleWidth[i - 1] + 1 + offset.x;
@@ -1256,10 +1257,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 ShaderConstants._BloomAtlasSOContainer[i] = new Vector4(scale.x / atlasWidth, scale.y / atlasHeight, offset.x / atlasWidth, offset.y / atlasHeight);
             }
             cmd.SetGlobalVectorArray(ShaderConstants._BloomCombineSOContainer, ShaderConstants._BloomAtlasSOContainer);
-            cmd.SetGlobalTexture("_SourceTex", ShaderConstants._BloomAtlasRTs[1]);
             cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0, 4);
-            
-            
+
             #endregion
             
             cmd.SetGlobalTexture(ShaderConstants._Bloom_Texture, ShaderConstants._BloomCombineRT);
