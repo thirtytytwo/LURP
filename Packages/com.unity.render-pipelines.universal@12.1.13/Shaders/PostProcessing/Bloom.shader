@@ -218,7 +218,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
                 v2f_single o;
                 o.positionCS = o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
                 float u = i.positionOS.x * 0.5f + 0.5f;
-                float v = i.positionOS.y * 0.5f + 0.5;
+                float v = i.positionOS.y * 0.5f + 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP
                 v = 1.0f - v;
                 #endif
