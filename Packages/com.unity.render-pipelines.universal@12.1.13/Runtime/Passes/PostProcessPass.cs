@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using UnityEngine.Experimental.Rendering;
 
+
+
 namespace UnityEngine.Rendering.Universal
 {
     // TODO: xmldoc
@@ -49,9 +51,11 @@ namespace UnityEngine.Rendering.Universal.Internal
         FilmGrain m_FilmGrain;
 
         // Misc
-        const int k_MaxPyramidSize = 16;
+        private readonly int atlasWidth = 503;
+        private readonly int atlasHeight = 192;
+        
         readonly GraphicsFormat m_DefaultHDRFormat;
-        bool m_UseRGBM;
+        //bool m_UseRGBM;
         readonly GraphicsFormat m_SMAAEdgeFormat;
         readonly GraphicsFormat m_GaussianCoCFormat;
         bool m_ResetHistory;
@@ -100,14 +104,14 @@ namespace UnityEngine.Rendering.Universal.Internal
             if (SystemInfo.IsFormatSupported(GraphicsFormat.B10G11R11_UFloatPack32, FormatUsage.Linear | FormatUsage.Render))
             {
                 m_DefaultHDRFormat = GraphicsFormat.B10G11R11_UFloatPack32;
-                m_UseRGBM = false;
+                //m_UseRGBM = false;
             }
             else
             {
                 m_DefaultHDRFormat = QualitySettings.activeColorSpace == ColorSpace.Linear
                     ? GraphicsFormat.R8G8B8A8_SRGB
                     : GraphicsFormat.R8G8B8A8_UNorm;
-                m_UseRGBM = true;
+                //m_UseRGBM = true;
             }
 
             // Only two components are needed for edge render texture, but on some vendors four components may be faster.
@@ -1124,8 +1128,8 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             for (int i = 0; i < 2; i++)
             {
-                decs.width = 503;
-                decs.height = 192;
+                decs.width = atlasWidth;
+                decs.height = atlasHeight;
                 
                 cmd.GetTemporaryRT(ShaderConstants._BloomAtlasRTs[i], decs, FilterMode.Bilinear);
             }
@@ -1136,11 +1140,11 @@ namespace UnityEngine.Rendering.Universal.Internal
             
             cmd.SetGlobalVector(ShaderConstants._BloomPrefilterParam, new Vector4(0.7f, 0,0,0));
             cmd.SetGlobalTexture("_SourceTex", source);
-            cmd.SetRenderTarget(ShaderConstants._BloomPrefilterRTs[0]);
+            cmd.SetRenderTarget(ShaderConstants._BloomPrefilterRTs[0], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0,0);
 
             cmd.SetGlobalTexture("_SourceTex", ShaderConstants._BloomPrefilterRTs[0]);
-            cmd.SetRenderTarget(ShaderConstants._BloomPrefilterRTs[1]);
+            cmd.SetRenderTarget(ShaderConstants._BloomPrefilterRTs[1], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0,1);
             
             #endregion
@@ -1151,7 +1155,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             for (int i = 0; i < 4; i++)
             {
                 cmd.SetGlobalTexture("_SourceTex", rt);
-                cmd.SetRenderTarget(ShaderConstants._BloomDownSampleRTs[i]);
+                cmd.SetRenderTarget(ShaderConstants._BloomDownSampleRTs[i], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
                 cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0, 1);
                 rt = ShaderConstants._BloomDownSampleRTs[i];
             }
@@ -1164,11 +1168,12 @@ namespace UnityEngine.Rendering.Universal.Internal
             Vector2 offset = Vector2.zero, scale = Vector2.zero;
             
             //Horizontal
-            cmd.SetRenderTarget(ShaderConstants._BloomAtlasRTs[0]);
+            cmd.SetRenderTarget(ShaderConstants._BloomAtlasRTs[0], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+            cmd.ClearRenderTarget(RTClearFlags.Color, Color.black, 0, 0);
             for (int i = 0; i < 4; i++)
             {
                 offset.x = (i == 0) ? 0 : (i % 2 == 0) ? offset.x : ShaderConstants._BloomDownSampleWidth[i - 1] + 1 + offset.x;
-                offset.y = (i == 0) ? 0 : (i % 2 != 0) ? offset.y : ShaderConstants._BloomDownSampleHeight[i] + 1 + offset.y;
+                offset.y = (i == 0) ? 0 : (i % 2 != 0) ? offset.y : ShaderConstants._BloomDownSampleHeight[i - 1] + 1 + offset.y;
                 scale.x = ShaderConstants._BloomDownSampleWidth[i];
                 scale.y = ShaderConstants._BloomDownSampleHeight[i];
                 
@@ -1192,7 +1197,43 @@ namespace UnityEngine.Rendering.Universal.Internal
                 cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0, 2);
             }
             //Vertical
+            cmd.SetRenderTarget(ShaderConstants._BloomAtlasRTs[1], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+            cmd.ClearRenderTarget(RTClearFlags.Color, Color.black, 0, 0);
+            cmd.SetGlobalTexture("_SourceTex", ShaderConstants._BloomAtlasRTs[0]);
+            atlasPerPixelX = 1f / atlasWidth;
+            atlasPerPixelY = 1f / atlasHeight;
+            for (int i = 0; i < 4; i++)
+            {
+                offset.x = (i == 0) ? 0 : (i % 2 == 0) ? offset.x : ShaderConstants._BloomDownSampleWidth[i - 1] + 1 + offset.x;
+                offset.y = (i == 0) ? 0 : (i % 2 != 0) ? offset.y : ShaderConstants._BloomDownSampleHeight[i - 1] + 1 + offset.y;
+                scale.x = ShaderConstants._BloomDownSampleWidth[i];
+                scale.y = ShaderConstants._BloomDownSampleHeight[i];
+                
+                cmd.SetViewport(new Rect(offset, scale));
+                
+                //ScaleAndOffsetFrag
+                cmd.SetGlobalVector(ShaderConstants._BloomDownSampleBlurScaleAndOffsetFrag, new Vector4(scale.x / atlasWidth, scale.y / atlasHeight, offset.x / atlasWidth, offset.y / atlasHeight));
+                
+                //SampleEdge
+                Vector2 maxV = new Vector2((ShaderConstants._BloomDownSampleWidth[i] + offset.x - 0.5f) * atlasPerPixelX, (ShaderConstants._BloomDownSampleHeight[i] + offset.y - 0.5f) * atlasPerPixelY);
+                Vector2 minV = new Vector2((0.5f + offset.x) * atlasPerPixelX, (0.5f + offset.y) * atlasPerPixelY);
+                cmd.SetGlobalVector(ShaderConstants._BloomDownSampleBlurEdge, new Vector4(minV.x, minV.y, maxV.x, maxV.y));
+                
+                //Blur
+                cmd.SetGlobalInt(ShaderConstants._BloomDownSampleBlurTime, ShaderConstants._BloomAtlasBlurLoop[i] * 2);
+                float footPrint = 0f;
+                for (int j = 0; j < ShaderConstants._BloomAtlasBlurLoop[i]; j++)
+                {
+                    footPrint = 0.5f + (1.0f * j);
+                    //positive
+                    ShaderConstants._BloomBlurContainer[j * 2] = new Vector4(footPrint * atlasPerPixelX, footPrint * atlasPerPixelY, ShaderConstants._BloomBlurKernals[i][j],0);
+                    //negative
+                    ShaderConstants._BloomBlurContainer[j * 2 + 1] = new Vector4(-1 * footPrint * atlasPerPixelX, -1 * footPrint * atlasPerPixelY, ShaderConstants._BloomBlurKernals[i][j],0);
+                }
+                cmd.SetGlobalVectorArray(ShaderConstants._BloomScaleXYAndBlurKernals, ShaderConstants._BloomBlurContainer);
 
+                cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0, 3);
+            }
             #endregion
 
             #region Clean up
@@ -1710,12 +1751,14 @@ namespace UnityEngine.Rendering.Universal.Internal
             };
             public static readonly int[] _BloomAtlasRTs      = new int[]
             {
-                Shader.PropertyToID("_BloomAtlasRT0"), Shader.PropertyToID("_BloomAtlasRT0")
+                Shader.PropertyToID("_BloomAtlasRT0"), Shader.PropertyToID("_BloomAtlasRT1")
             };
 
             public static readonly int _BloomPrefilterParam = Shader.PropertyToID("_PreFilterParam");
             public static readonly int _BloomDownSampleBlurTime = Shader.PropertyToID("_LoopTime");
             public static readonly int _BloomScaleXYAndBlurKernals = Shader.PropertyToID("_ScaleXYAndBlurKernals");
+            public static readonly int _BloomDownSampleBlurEdge = Shader.PropertyToID("_SampleEdge");
+            public static readonly int _BloomDownSampleBlurScaleAndOffsetFrag = Shader.PropertyToID("_UVScaleAndOffsetFrag");
 
             public static readonly int[] _BloomDownSampleWidth = new int[] { 342, 160, 72, 36 };
             public static readonly int[] _BloomDownSampleHeight = new int[] { 192, 90, 40, 20 };
