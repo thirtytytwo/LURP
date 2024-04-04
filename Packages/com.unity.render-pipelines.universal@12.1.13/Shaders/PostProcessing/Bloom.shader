@@ -143,7 +143,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             {
                 half4 col = 0;
                 float2 newUV;
-                for (int i = 0; i <=_LoopTime; i++)
+                for (int i = 0; i <_LoopTime; i++)
                 {
                     newUV = _ScaleXYAndBlurKernals[i].xy * float2(1,0) + input.uv;
                     col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV) * _ScaleXYAndBlurKernals[i].z;
@@ -188,7 +188,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
                 half4 col = 0;
                 float2 newUV = input.uv * _UVScaleAndOffsetFrag.xy + _UVScaleAndOffsetFrag.zw;
                 float2 sampleUV;
-                for (int i = 0; i <=_LoopTime; i++)
+                for (int i = 0; i <_LoopTime; i++)
                 {
                     sampleUV = _ScaleXYAndBlurKernals[i].xy * float2(0,1)+ newUV;
                     sampleUV = max(sampleUV, _SampleEdge.xy);

@@ -1260,8 +1260,13 @@ namespace UnityEngine.Rendering.Universal.Internal
             cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0, 4);
 
             #endregion
+
+            #region Connect to Uber
             
             cmd.SetGlobalTexture(ShaderConstants._Bloom_Texture, ShaderConstants._BloomCombineRT);
+            uberMaterial.EnableKeyword(ShaderKeywordStrings.BloomLQ);
+
+            #endregion
 
             #region Clean up
 

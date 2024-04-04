@@ -151,36 +151,17 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
             #if defined(BLOOM)
             {
-                #if _BLOOM_HQ && !defined(SHADER_API_GLES)
-                half4 bloom = SampleTexture2DBicubic(TEXTURE2D_X_ARGS(_Bloom_Texture, sampler_LinearClamp), uvDistorted, _Bloom_Texture_TexelSize.zwxy, (1.0).xx, unity_StereoEyeIndex);
-                #else
                 half4 bloom = SAMPLE_TEXTURE2D_X(_Bloom_Texture, sampler_LinearClamp, uvDistorted);
-                #endif
 
                 #if UNITY_COLORSPACE_GAMMA
                 bloom.xyz *= bloom.xyz; // γ to linear
                 #endif
 
                 UNITY_BRANCH
-                if (BloomRGBM > 0)
-                {
-                    bloom.xyz = DecodeRGBM(bloom);
-                }
 
-                bloom.xyz *= BloomIntensity;
-                color += bloom.xyz * BloomTint;
-
-                #if defined(BLOOM_DIRT)
-                {
-                    // UVs for the dirt texture should be DistortUV(uv * DirtScale + DirtOffset) but
-                    // considering we use a cover-style scale on the dirt texture the difference
-                    // isn't massive so we chose to save a few ALUs here instead in case lens
-                    // distortion is active.
-                    half3 dirt = SAMPLE_TEXTURE2D(_LensDirt_Texture, sampler_LinearClamp, uvDistorted * LensDirtScale + LensDirtOffset).xyz;
-                    dirt *= LensDirtIntensity;
-                    color += dirt * bloom.xyz;
-                }
-                #endif
+                //bloom.xyz *= BloomIntensity;
+                color += bloom.xyz;// * BloomTint;
+                
             }
             #endif
 
