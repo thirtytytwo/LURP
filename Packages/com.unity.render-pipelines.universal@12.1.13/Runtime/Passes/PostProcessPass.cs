@@ -1145,8 +1145,12 @@ namespace UnityEngine.Rendering.Universal.Internal
             #endregion
 
             #region Prefilter
-            
-            cmd.SetGlobalVector(ShaderConstants._BloomPrefilterParam, new Vector4(0.7f, 0,0,0));
+
+            Vector4 pre_param = new Vector4(m_Bloom.threshold.value, 
+                                        m_Bloom.tint.value.r, 
+                                        m_Bloom.tint.value.g,
+                                        m_Bloom.tint.value.b);
+            cmd.SetGlobalVector(ShaderConstants._BloomPrefilterParam, pre_param);
             cmd.SetGlobalTexture("_SourceTex", source);
             cmd.SetRenderTarget(ShaderConstants._BloomPrefilterRTs[0], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0,0);
@@ -1264,6 +1268,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             #region Connect to Uber
             
             cmd.SetGlobalTexture(ShaderConstants._Bloom_Texture, ShaderConstants._BloomCombineRT);
+            cmd.SetGlobalVector(ShaderConstants._Bloom_Params, new Vector4(m_Bloom.intensity.value,0,0,0));
             uberMaterial.EnableKeyword(ShaderKeywordStrings.BloomLQ);
 
             #endregion
@@ -1738,13 +1743,8 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             public static readonly int _ColorTexture = Shader.PropertyToID("_ColorTexture");
             public static readonly int _Params = Shader.PropertyToID("_Params");
-            public static readonly int _SourceTexLowMip = Shader.PropertyToID("_SourceTexLowMip");
             public static readonly int _Bloom_Params = Shader.PropertyToID("_Bloom_Params");
-            public static readonly int _Bloom_RGBM = Shader.PropertyToID("_Bloom_RGBM");
             public static readonly int _Bloom_Texture = Shader.PropertyToID("_Bloom_Texture");
-            public static readonly int _LensDirt_Texture = Shader.PropertyToID("_LensDirt_Texture");
-            public static readonly int _LensDirt_Params = Shader.PropertyToID("_LensDirt_Params");
-            public static readonly int _LensDirt_Intensity = Shader.PropertyToID("_LensDirt_Intensity");
             public static readonly int _Distortion_Params1 = Shader.PropertyToID("_Distortion_Params1");
             public static readonly int _Distortion_Params2 = Shader.PropertyToID("_Distortion_Params2");
             public static readonly int _Chroma_Params = Shader.PropertyToID("_Chroma_Params");
