@@ -1146,10 +1146,11 @@ namespace UnityEngine.Rendering.Universal.Internal
 
             #region Prefilter
 
-            Vector4 pre_param = new Vector4(m_Bloom.threshold.value, 
-                                        m_Bloom.tint.value.r, 
-                                        m_Bloom.tint.value.g,
-                                        m_Bloom.tint.value.b);
+            float clamp = m_Bloom.clamp.value;
+            float scatter = m_Bloom.scatter.value;
+            float threshold = Mathf.GammaToLinearSpace(m_Bloom.threshold.value);
+            float thresholdKnee = threshold * 0.5f;
+            Vector4 pre_param = new Vector4(scatter, clamp, threshold, thresholdKnee);
             cmd.SetGlobalVector(ShaderConstants._BloomPrefilterParam, pre_param);
             cmd.SetGlobalTexture("_SourceTex", source);
             cmd.SetRenderTarget(ShaderConstants._BloomPrefilterRTs[0], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);

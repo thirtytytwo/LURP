@@ -43,7 +43,7 @@ MonoBehaviour:
   active: 1
   threshold:
     m_OverrideState: 1
-    m_Value: 1.86
+    m_Value: 0.92
   intensity:
     m_OverrideState: 1
     m_Value: 3.71
@@ -51,8 +51,8 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: 0.7
   tint:
-    m_OverrideState: 1
-    m_Value: {r: 0.5283019, g: 0.062299743, b: 0.062299743, a: 1}
+    m_OverrideState: 0
+    m_Value: {r: 0, g: 0, b: 0, a: 1}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

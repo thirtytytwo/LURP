@@ -46,8 +46,10 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             #pragma fragment Frag
 
             float4 _PreFilterParam;
-            #define THRESHOLD _PreFilterParam.x
-            #define COLORGRADINGRGB _PreFilterParam.yzw
+            #define SCATTER _PreFilterParam.x
+            #define CLAMP _PreFilterParam.y
+            #define THRESHOLD _PreFilterParam.z
+            #define THRESHOLDKNEE _PreFilterParam.w
 
 
             v2f_single Vert(a2v i)
@@ -65,13 +67,16 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
 
             half4 Frag(v2f_single i) : SV_Target
             {
-                half3 bloomParam = (1.0f - COLORGRADINGRGB) * THRESHOLD;
-                half4 sample1 = SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, i.uv);
+                half4 col = SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, i.uv);
+                col = min(CLAMP, col);
 
-                half4 col;
-                col.rgb = sample1.rgb - bloomParam.xyz;
-                col.a = sample1.a;
-                col.rgb = max(0.0f, col.rgb);
+                //thresholding
+                half brightness = Max3(col.r, col.g, col.b);
+                half softness = clamp(brightness - THRESHOLD + THRESHOLDKNEE, 0.0, 2.0 * THRESHOLDKNEE);
+                softness = (softness * softness) / (4.0 * THRESHOLDKNEE + 1e-4);
+                half multiplier = max(brightness - THRESHOLD, softness) / max(brightness, 1e-4);
+                col *= multiplier;
+                col = max(col,0); 
                 return col;
             }
             ENDHLSL

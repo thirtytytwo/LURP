@@ -10,6 +10,7 @@ namespace UnityEditor.Rendering.Universal
         SerializedDataParameter m_Threshold;
         SerializedDataParameter m_Intensity;
         SerializedDataParameter m_Scatter;
+        SerializedDataParameter m_Clamp;
         SerializedDataParameter m_Tint;
 
         public override void OnEnable()
@@ -19,6 +20,7 @@ namespace UnityEditor.Rendering.Universal
             m_Threshold = Unpack(o.Find(x => x.threshold));
             m_Intensity = Unpack(o.Find(x => x.intensity));
             m_Scatter = Unpack(o.Find(x => x.scatter));
+            m_Clamp = Unpack(o.Find(x => x.clamp));
             m_Tint = Unpack(o.Find(x => x.tint));
         }
 
@@ -27,6 +29,7 @@ namespace UnityEditor.Rendering.Universal
             PropertyField(m_Threshold);
             PropertyField(m_Intensity);
             PropertyField(m_Scatter);
+            PropertyField(m_Clamp);
             PropertyField(m_Tint);
         }
     }

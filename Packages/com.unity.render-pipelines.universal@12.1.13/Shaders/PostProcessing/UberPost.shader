@@ -159,7 +159,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
 
                 UNITY_BRANCH
 
-                //bloom.xyz *= BloomIntensity;
+                bloom.xyz *= BloomIntensity;
                 color += bloom.xyz;// * BloomTint;
                 
             }
