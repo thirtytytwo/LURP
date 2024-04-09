@@ -125,6 +125,8 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             #pragma vertex Vert
             #pragma fragment Frag
 
+            #pragma multi_compile_local_fragment _ _DEFAULT_KERNAL
+
             CBUFFER_START(UnityBloomAltlasParam)
             int    _LoopTime;
             float4 _ScaleXYAndBlurKernals[16];
@@ -148,11 +150,22 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             {
                 half4 col = 0;
                 float2 newUV;
+                #ifdef _DEFAULTBLUR
+                newUV = input.uv;
+                float texelSize = _SourceTex_TexelSize.x;
+                half3 c0 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV - float2(texelSize * 3.23076923, 0.0);
+                half3 c1 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV - float2(texelSize * 1.38461538, 0.0);
+                half3 c2 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV                                     );
+                half3 c3 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV + float2(texelSize * 1.38461538, 0.0);
+                half3 c4 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV + float2(texelSize * 3.23076923, 0.0);
+                col = c0 * 0.07027027 + c1 * 0.31621622 + c2 * 0.22702703 + c3 * 0.31621622 + c4 * 0.07027027;
+                #else
                 for (int i = 0; i <_LoopTime; i++)
                 {
                     newUV = _ScaleXYAndBlurKernals[i].xy * float2(1,0) + input.uv;
                     col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV) * _ScaleXYAndBlurKernals[i].z;
                 }
+                #endif
                 //TODO:是否还需要一个整体的调整参数col *= 
                 return col;
             }
@@ -166,6 +179,8 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
 
             #pragma vertex Vert
             #pragma fragment Frag
+
+            #pragma multi_compile_local_fragment _ _DEFAULT_KERNAL
 
             CBUFFER_START(UnityBloomAltlasParam)
             int    _LoopTime;
@@ -193,6 +208,16 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
                 half4 col = 0;
                 float2 newUV = input.uv * _UVScaleAndOffsetFrag.xy + _UVScaleAndOffsetFrag.zw;
                 float2 sampleUV;
+                #ifdef _DEFAULTBLUR
+                newUV = input.uv;
+                float texelSize = _SourceTex_TexelSize.y;
+                half3 c0 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV - float2(0.0, texelSize * 3.23076923);
+                half3 c1 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV - float2(0.0, texelSize * 1.38461538);
+                half3 c2 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV                                     );
+                half3 c3 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV + float2(0.0, texelSize * 1.38461538);
+                half3 c4 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV + float2(0.0, texelSize * 3.23076923);
+                col = c0 * 0.07027027 + c1 * 0.31621622 + c2 * 0.22702703 + c3 * 0.31621622 + c4 * 0.07027027;
+                #else
                 for (int i = 0; i <_LoopTime; i++)
                 {
                     sampleUV = _ScaleXYAndBlurKernals[i].xy * float2(0,1)+ newUV;
@@ -200,6 +225,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
                     sampleUV = min(sampleUV, _SampleEdge.zw);
                     col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, sampleUV) * _ScaleXYAndBlurKernals[i].z;
                 }
+                #endif
                 //TODO:是否还需要一个整体的调整参数col *= 
                 return col;
             }

@@ -21,6 +21,9 @@ namespace UnityEngine.Rendering.Universal
         [Tooltip("Use the color picker to select a color for the Bloom effect to tint to.")]
         public ColorParameter tint = new ColorParameter(Color.black, false, false, true);
 
+        [Tooltip("使用Unity 原生Bloom的 高斯模糊核")]
+        public BoolParameter bloomDefaultKernal = new BoolParameter(false, false);
+
         public bool IsActive() => intensity.value > 0f;
 
         public bool IsTileCompatible() => false;

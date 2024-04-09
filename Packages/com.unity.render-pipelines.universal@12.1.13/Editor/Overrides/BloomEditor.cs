@@ -12,6 +12,7 @@ namespace UnityEditor.Rendering.Universal
         SerializedDataParameter m_Scatter;
         SerializedDataParameter m_Clamp;
         SerializedDataParameter m_Tint;
+        SerializedDataParameter m_BloomKernal;
 
         public override void OnEnable()
         {
@@ -22,6 +23,7 @@ namespace UnityEditor.Rendering.Universal
             m_Scatter = Unpack(o.Find(x => x.scatter));
             m_Clamp = Unpack(o.Find(x => x.clamp));
             m_Tint = Unpack(o.Find(x => x.tint));
+            m_BloomKernal = Unpack(o.Find(x => x.bloomDefaultKernal));
         }
 
         public override void OnInspectorGUI()
@@ -31,6 +33,7 @@ namespace UnityEditor.Rendering.Universal
             PropertyField(m_Scatter);
             PropertyField(m_Clamp);
             PropertyField(m_Tint);
+            PropertyField(m_BloomKernal);
         }
     }
 }

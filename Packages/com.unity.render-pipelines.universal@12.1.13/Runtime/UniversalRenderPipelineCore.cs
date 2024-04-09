@@ -418,7 +418,7 @@ namespace UnityEngine.Rendering.Universal
         public const string BloomHQ = "_BLOOM_HQ";
         public const string BloomLQDirt = "_BLOOM_LQ_DIRT";
         public const string BloomHQDirt = "_BLOOM_HQ_DIRT";
-        public const string UseRGBM = "_USE_RGBM";
+        public const string BloomDefaultKernal = "_DEFAULT_KERNAL";
         public const string Distortion = "_DISTORTION";
         public const string ChromaticAberration = "_CHROMATIC_ABERRATION";
         public const string HDRGrading = "_HDR_GRADING";
