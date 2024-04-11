@@ -53,7 +53,7 @@ namespace UnityEngine.Rendering.Universal.Internal
         internal static class ShaderKeywords
         {
             internal const string BloomDefaultKernal = "_DEFAULT_KERNAL";
-            internal const string BloomActive = "_Bloom_Active";
+            internal const string BloomActive = "_BLOOM_ACTIVE";
 
         }
 
@@ -112,13 +112,10 @@ namespace UnityEngine.Rendering.Universal.Internal
                 #endregion
 
                 #region Prefilter
-
-                float clamp = bloomSetting.clamp.value;
-                float scatter = bloomSetting.scatter.value;
+                
                 float threshold = Mathf.GammaToLinearSpace(bloomSetting.threshold.value);
-                float thresholdKnee = threshold * 0.5f;
-                Vector4 pre_param = new Vector4(scatter, clamp, threshold, thresholdKnee);
-                cmd.SetGlobalVector(ShaderConstants._BloomPrefilterParam, pre_param);
+                Vector4 preParam = new Vector4(threshold, bloomSetting.tint.value.r, bloomSetting.tint.value.g, bloomSetting.tint.value.b);
+                cmd.SetGlobalVector(ShaderConstants._BloomPrefilterParam, preParam);
                 cmd.SetGlobalTexture("_SourceTex", source);
                 cmd.SetRenderTarget(ShaderConstants._BloomPrefilterRTs[0], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
                 cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, bloomMat, 0,0);

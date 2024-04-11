@@ -4,7 +4,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #pragma exclude_renderers gles
         #pragma multi_compile_local_fragment _ _DISTORTION
         #pragma multi_compile_local_fragment _ _CHROMATIC_ABERRATION
-        #pragma multi_compile_local_fragment _ _Bloom_Active
+        #pragma multi_compile_local_fragment _ _BLOOM_ACTIVE
         #pragma multi_compile_local_fragment _ _HDR_GRADING _TONEMAP_ACES _TONEMAP_NEUTRAL
         #pragma multi_compile_local_fragment _ _FILM_GRAIN
         #pragma multi_compile_local_fragment _ _DITHERING
@@ -55,8 +55,6 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #define ChromaAmount            _Chroma_Params.x
 
         #define BloomIntensity          _Bloom_Params.x
-        #define BloomTint               _Bloom_Params.yzw
-        #define BloomRGBM               _Bloom_RGBM.x
         #define LensDirtScale           _LensDirt_Params.xy
         #define LensDirtOffset          _LensDirt_Params.zw
         #define LensDirtIntensity       _LensDirt_Intensity.x
@@ -143,7 +141,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             }
             #endif
 
-            #if _Bloom_Active
+            #if _BLOOM_ACTIVE
             {
                 half4 bloom = SAMPLE_TEXTURE2D_X(_Bloom_Texture, sampler_LinearClamp, uvDistorted);
 
@@ -154,7 +152,8 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
                 UNITY_BRANCH
 
                 bloom.xyz *= BloomIntensity;
-                color += bloom.xyz;// * BloomTint;
+                color += bloom.xyz;
+                color = min(color, 65400);
                 
             }
             #endif
