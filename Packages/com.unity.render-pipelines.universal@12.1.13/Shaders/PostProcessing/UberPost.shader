@@ -4,7 +4,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #pragma exclude_renderers gles
         #pragma multi_compile_local_fragment _ _DISTORTION
         #pragma multi_compile_local_fragment _ _CHROMATIC_ABERRATION
-        #pragma multi_compile_local_fragment _ _BLOOM_LQ _BLOOM_HQ _BLOOM_LQ_DIRT _BLOOM_HQ_DIRT
+        #pragma multi_compile_local_fragment _ _Bloom_Active
         #pragma multi_compile_local_fragment _ _HDR_GRADING _TONEMAP_ACES _TONEMAP_NEUTRAL
         #pragma multi_compile_local_fragment _ _FILM_GRAIN
         #pragma multi_compile_local_fragment _ _DITHERING
@@ -20,12 +20,6 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Debug/DebuggingFullscreen.hlsl"
 
         // Hardcoded dependencies to reduce the number of variants
-        #if _BLOOM_LQ || _BLOOM_HQ || _BLOOM_LQ_DIRT || _BLOOM_HQ_DIRT
-            #define BLOOM
-            #if _BLOOM_LQ_DIRT || _BLOOM_HQ_DIRT
-                #define BLOOM_DIRT
-            #endif
-        #endif
 
         TEXTURE2D_X(_SourceTex);
         TEXTURE2D_X(_Bloom_Texture);
@@ -149,7 +143,7 @@ Shader "Hidden/Universal Render Pipeline/UberPost"
             }
             #endif
 
-            #if defined(BLOOM)
+            #if _Bloom_Active
             {
                 half4 bloom = SAMPLE_TEXTURE2D_X(_Bloom_Texture, sampler_LinearClamp, uvDistorted);
 

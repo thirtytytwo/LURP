@@ -414,11 +414,6 @@ namespace UnityEngine.Rendering.Universal
         public const string SmaaHigh = "_SMAA_PRESET_HIGH";
         public const string PaniniGeneric = "_GENERIC";
         public const string PaniniUnitDistance = "_UNIT_DISTANCE";
-        public const string BloomLQ = "_BLOOM_LQ";
-        public const string BloomHQ = "_BLOOM_HQ";
-        public const string BloomLQDirt = "_BLOOM_LQ_DIRT";
-        public const string BloomHQDirt = "_BLOOM_HQ_DIRT";
-        public const string BloomDefaultKernal = "_DEFAULT_KERNAL";
         public const string Distortion = "_DISTORTION";
         public const string ChromaticAberration = "_CHROMATIC_ABERRATION";
         public const string HDRGrading = "_HDR_GRADING";
