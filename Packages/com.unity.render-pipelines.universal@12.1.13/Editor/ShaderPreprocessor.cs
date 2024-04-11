@@ -120,10 +120,6 @@ namespace UnityEditor.Rendering.Universal
 
         LocalKeyword m_LensDistortion;
         LocalKeyword m_ChromaticAberration;
-        LocalKeyword m_BloomLQ;
-        LocalKeyword m_BloomHQ;
-        LocalKeyword m_BloomLQDirt;
-        LocalKeyword m_BloomHQDirt;
         LocalKeyword m_HdrGrading;
         LocalKeyword m_ToneMapACES;
         LocalKeyword m_ToneMapNeutral;
@@ -193,10 +189,6 @@ namespace UnityEditor.Rendering.Universal
             // Post processing
             m_LensDistortion = TryGetLocalKeyword(shader, ShaderKeywordStrings.Distortion);
             m_ChromaticAberration = TryGetLocalKeyword(shader, ShaderKeywordStrings.ChromaticAberration);
-            m_BloomLQ = TryGetLocalKeyword(shader, ShaderKeywordStrings.BloomLQ);
-            m_BloomHQ = TryGetLocalKeyword(shader, ShaderKeywordStrings.BloomHQ);
-            m_BloomLQDirt = TryGetLocalKeyword(shader, ShaderKeywordStrings.BloomLQDirt);
-            m_BloomHQDirt = TryGetLocalKeyword(shader, ShaderKeywordStrings.BloomHQDirt);
             m_HdrGrading = TryGetLocalKeyword(shader, ShaderKeywordStrings.HDRGrading);
             m_ToneMapACES = TryGetLocalKeyword(shader, ShaderKeywordStrings.TonemapACES);
             m_ToneMapNeutral = TryGetLocalKeyword(shader, ShaderKeywordStrings.TonemapNeutral);
@@ -532,15 +524,6 @@ namespace UnityEditor.Rendering.Universal
                 return true;
 
             if (stripTool.StripMultiCompileKeepOffVariant(m_ChromaticAberration, VolumeFeatures.ChromaticAberration))
-                return true;
-
-            if (stripTool.StripMultiCompileKeepOffVariant(m_BloomLQ, VolumeFeatures.Bloom))
-                return true;
-            if (stripTool.StripMultiCompileKeepOffVariant(m_BloomHQ, VolumeFeatures.Bloom))
-                return true;
-            if (stripTool.StripMultiCompileKeepOffVariant(m_BloomLQDirt, VolumeFeatures.Bloom))
-                return true;
-            if (stripTool.StripMultiCompileKeepOffVariant(m_BloomHQDirt, VolumeFeatures.Bloom))
                 return true;
 
             if (stripTool.StripMultiCompileKeepOffVariant(m_HdrGrading, VolumeFeatures.ToneMaping))
