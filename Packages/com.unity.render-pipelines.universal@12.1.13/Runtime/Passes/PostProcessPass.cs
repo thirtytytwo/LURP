@@ -48,13 +48,8 @@ namespace UnityEngine.Rendering.Universal.Internal
         ColorAdjustments m_ColorAdjustments;
         Tonemapping m_Tonemapping;
         FilmGrain m_FilmGrain;
-
-        // Misc
-        private readonly int atlasWidth = 503;
-        private readonly int atlasHeight = 192;
         
         readonly GraphicsFormat m_DefaultHDRFormat;
-        //bool m_UseRGBM;
         readonly GraphicsFormat m_SMAAEdgeFormat;
         readonly GraphicsFormat m_GaussianCoCFormat;
         bool m_ResetHistory;
@@ -125,7 +120,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 m_GaussianCoCFormat = GraphicsFormat.R16_SFloat;
             else // Expect CoC banding
                 m_GaussianCoCFormat = GraphicsFormat.R8_UNorm;
-            
+
             m_MRT2 = new RenderTargetIdentifier[2];
             m_ResetHistory = true;
             base.useNativeRenderPass = false;
