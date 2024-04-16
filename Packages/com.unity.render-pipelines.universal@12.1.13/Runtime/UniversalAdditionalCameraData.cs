@@ -37,10 +37,15 @@ namespace UnityEngine.Rendering.Universal
     {
         [InspectorName("No Anti-aliasing")]
         None,
-        [InspectorName("Fast Approximate Anti-aliasing (FXAA)")]
+        [InspectorName("FXAA")]
         FastApproximateAntialiasing,
         [InspectorName("Subpixel Morphological Anti-aliasing (SMAA)")]
         SubpixelMorphologicalAntiAliasing,
+        [InspectorName("TAA")]
+        TemporalAntiAliasing,
+        //TODO:后续加上
+        [InspectorName("FXAA + TAA")]
+        FastAndTemporalAntiAliasing
         //TemporalAntialiasing
     }
 
