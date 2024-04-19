@@ -23,7 +23,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             };
             public static readonly int _BloomCombineRT = Shader.PropertyToID("_BloomCombine");
             
-            public static readonly int _BloomPrefilterParam = Shader.PropertyToID("_PreFilterParam");
+            public static readonly int _BloomPrefilterParam = Shader.PropertyToID("_BloomSettingParam");
             public static readonly int _BloomDownSampleBlurTime = Shader.PropertyToID("_LoopTime");
             public static readonly int _BloomScaleXYAndBlurKernals = Shader.PropertyToID("_ScaleXYAndBlurKernals");
             public static readonly int _BloomDownSampleBlurEdge = Shader.PropertyToID("_SampleEdge");
@@ -114,7 +114,10 @@ namespace UnityEngine.Rendering.Universal.Internal
                 #region Prefilter
                 
                 float threshold = Mathf.GammaToLinearSpace(bloomSetting.threshold.value);
-                Vector4 preParam = new Vector4(threshold, bloomSetting.tint.value.r, bloomSetting.tint.value.g, bloomSetting.tint.value.b);
+                float thresholdKnee = threshold * 0.5f;
+                float scatter = Mathf.Lerp(0.05f, 0.95f, bloomSetting.scatter.value);
+                float clamp = bloomSetting.clamp.value;
+                Vector4 preParam = new Vector4(scatter, clamp, threshold, thresholdKnee);
                 cmd.SetGlobalVector(ShaderConstants._BloomPrefilterParam, preParam);
                 cmd.SetGlobalTexture("_SourceTex", source);
                 cmd.SetRenderTarget(ShaderConstants._BloomPrefilterRTs[0], RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);

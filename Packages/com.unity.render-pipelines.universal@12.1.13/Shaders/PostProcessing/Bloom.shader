@@ -9,6 +9,13 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
 
         TEXTURE2D_X(_SourceTex);
         float2 _SourceTex_TexelSize;
+
+        float4 _BloomSettingParam;
+        #define SCATTER _BloomSettingParam.x
+        #define CLAMP _BloomSettingParam.y
+        #define THRESHOLD _BloomSettingParam.z
+        #define THRESHOLDKNEE _BloomSettingParam.w
+
     
         //Struct
         struct a2v
@@ -35,7 +42,6 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
         Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" }
         ZTest Always Cull Off ZWrite Off Blend Off
         LOD 100
-        
 
         Pass
         {
@@ -44,12 +50,7 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             
             #pragma vertex Vert
             #pragma fragment Frag
-
-            float4 _PreFilterParam;
-            #define THRESHOLD _PreFilterParam.x
-            #define TINT _PreFilterParam.yzw
-
-
+            
             v2f_single Vert(a2v i)
             {
                 v2f_single o;
@@ -65,14 +66,15 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
 
             half4 Frag(v2f_single i) : SV_Target
             {
-                half3 bloomParam = (1.0f - TINT) * THRESHOLD;
-                half4 sample1 = SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, i.uv);
+                half3 color = SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, i.uv);
 
-                half4 col;
-                col.rgb = sample1.rgb - bloomParam.xyz;
-                col.a = sample1.a;
-                col.rgb = max(0.0f, col.rgb);
-                return col;
+                half brightness = Max3(color.r, color.g, color.b);
+                half softness = clamp(brightness - THRESHOLD + THRESHOLDKNEE, 0.0, 2.0 * THRESHOLDKNEE);
+                softness = (softness * softness) / (4.0 * THRESHOLDKNEE + 1e-4);
+                half multiplier = max(brightness - THRESHOLD, softness) / max(brightness, 1e-4);
+                color *= multiplier;
+                color = max(color, 0);
+                return half4(color,1);
             }
             ENDHLSL
         }
@@ -256,13 +258,13 @@ Shader "Hidden/Universal Render Pipeline/Bloom"
             
             half4 Frag(v2f_single input):SV_Target
             {
-                half4 col = 0;
-                float2 newUV;
+                float2 newUV = _SampleScaleAndOffset[0].xy * input.uv + _SampleScaleAndOffset[0].zw;;
+                half4 col = SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV);
                 UNITY_UNROLL
-                for (int i = 0; i < 4; i++)
+                for (int i = 1; i < 4; i++)
                 {
                     newUV = _SampleScaleAndOffset[i].xy * input.uv + _SampleScaleAndOffset[i].zw;
-                    col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV)  ;
+                    col = lerp(col, SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV), SCATTER);
                 }
                 //TODO:是否还需要一个整体的调整参数col *= 
                 return col;

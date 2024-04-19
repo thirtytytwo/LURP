@@ -418,7 +418,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             // Anti-aliasing
             if (useTAA)
             {
-                TAAFeature.ExecuteTAA();
+                //TAAFeature.ExecuteTAA();
             }
             if (useSubPixeMorpAA)
             {
