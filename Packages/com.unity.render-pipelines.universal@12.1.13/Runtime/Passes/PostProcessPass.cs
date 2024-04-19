@@ -324,7 +324,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             //We blit back and forth without msaa untill the last blit.
             bool useStopNan = cameraData.isStopNaNEnabled && m_Materials.stopNaN != null;
             bool useSubPixeMorpAA = cameraData.antialiasing == AntialiasingMode.SubpixelMorphologicalAntiAliasing && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES2;
-            bool useTAA = cameraData.antialiasing == AntialiasingMode.TemporalAntiAliasing;
             var dofMaterial = m_DepthOfField.mode.value == DepthOfFieldMode.Gaussian ? m_Materials.gaussianDepthOfField : m_Materials.bokehDepthOfField;
             bool useDepthOfField = m_DepthOfField.IsActive() && !isSceneViewCamera && dofMaterial != null;
             bool useLensFlare = !LensFlareCommonSRP.Instance.IsEmpty();
@@ -416,10 +415,6 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
 
             // Anti-aliasing
-            if (useTAA)
-            {
-                //TAAFeature.ExecuteTAA();
-            }
             if (useSubPixeMorpAA)
             {
                 using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.SMAA)))
