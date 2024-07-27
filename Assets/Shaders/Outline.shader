@@ -10,7 +10,7 @@ Shader "Unlit/Outline"
         Tags { "RenderType"="Opaque" }
         LOD 100
         ZWrite On
-        Cull Off
+        Cull Front
 
         Pass
         {
@@ -62,7 +62,7 @@ Shader "Unlit/Outline"
                                float4(v.normal, 0), 
                                float4(0, 0, 0, 0));
                 float3 resultNormal = mul(packNormal, tbn);
-                float3 vertPos = v.vertex.xyz + packNormal * _Outline * 0.01;
+                float3 vertPos = v.vertex.xyz + resultNormal * _Outline * 0.01;
                 o.vertex = TransformObjectToHClip(vertPos);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 return o;
