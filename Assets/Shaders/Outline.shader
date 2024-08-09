@@ -56,11 +56,7 @@ Shader "Unlit/Outline"
                 v2f o;
                 float3 packNormal = Unpack(v.uv2);
                 float3 bitangent = cross(v.normal, v.Tangent.xyz) * v.Tangent.w;
-                float4x4 tbn = float4x4(
-                               float4(v.Tangent), 
-                               float4(bitangent, 0), 
-                               float4(v.normal, 0), 
-                               float4(0, 0, 0, 0));
+                float3x3 tbn = float3x3(v.Tangent.xyz, bitangent, v.normal);
                 float3 resultNormal = mul(packNormal, tbn);
                 float3 vertPos = v.vertex.xyz + resultNormal * _Outline * 0.01;
                 o.vertex = TransformObjectToHClip(vertPos);
