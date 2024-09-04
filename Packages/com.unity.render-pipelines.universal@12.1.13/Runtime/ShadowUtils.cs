@@ -258,7 +258,7 @@ namespace UnityEngine.Rendering.Universal
             cmd.SetGlobalVector("_LightPosition", new Vector4(lightPosition.x, lightPosition.y, lightPosition.z, 1.0f));
         }
 
-        public static RenderTexture GetTemporaryShadowTexture(int width, int height, int bits)
+        public static RenderTexture  GetTemporaryShadowTexture(int width, int height, int bits)
         {
             var format = Experimental.Rendering.GraphicsFormatUtility.GetDepthStencilFormat(bits, 0);
             RenderTextureDescriptor rtd = new RenderTextureDescriptor(width, height, Experimental.Rendering.GraphicsFormat.None, format);

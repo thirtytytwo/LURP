@@ -10,7 +10,7 @@ Shader "Unlit/Outline"
         Tags { "RenderType"="Opaque" }
         LOD 100
         ZWrite On
-        Cull Front
+        Cull Off
 
         Pass
         {
