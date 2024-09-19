@@ -26,8 +26,9 @@ struct Varyings
 
 float4 GetShadowPositionHClip(Attributes input)
 {
-    float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+    
     float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+    float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
 
 #if _CASTING_PUNCTUAL_LIGHT_SHADOW
     float3 lightDirectionWS = normalize(_LightPosition - positionWS);
@@ -53,6 +54,11 @@ Varyings ShadowPassVertex(Attributes input)
 
     output.uv = TRANSFORM_TEX(input.texcoord, _BaseMap);
     output.positionCS = GetShadowPositionHClip(input);
+    #if UNITY_REVERSED_Z
+    output.positionCS.z -= (output.positionCS.w * 0.001);
+    #else
+    output.positionCS.z += (output.positionCS.w * 0.001);
+    #endif
     return output;
 }
 

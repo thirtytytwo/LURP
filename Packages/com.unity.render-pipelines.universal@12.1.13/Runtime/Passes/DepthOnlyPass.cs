@@ -41,6 +41,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             this.depthAttachmentHandle = depthAttachmentHandle;
             baseDescriptor.colorFormat = RenderTextureFormat.Depth;
             baseDescriptor.depthBufferBits = UniversalRenderer.k_DepthStencilBufferBits;
+            baseDescriptor.width >>= 1;
+            baseDescriptor.height >>= 1;
 
             // Depth-Only pass don't use MSAA
             baseDescriptor.msaaSamples = 1;
@@ -55,6 +57,7 @@ namespace UnityEngine.Rendering.Universal.Internal
             if (this.allocateDepth)
                 cmd.GetTemporaryRT(depthAttachmentHandle.id, descriptor, FilterMode.Point);
             var desc = renderingData.cameraData.cameraTargetDescriptor;
+            
 
             // When depth priming is in use the camera target should not be overridden so the Camera's MSAA depth attachment is used.
             if (renderingData.cameraData.renderer.useDepthPriming && (renderingData.cameraData.renderType == CameraRenderType.Base || renderingData.cameraData.clearDepth))

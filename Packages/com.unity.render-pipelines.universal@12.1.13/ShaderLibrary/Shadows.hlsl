@@ -427,8 +427,8 @@ float4 GetShadowCoord(VertexPositionInputs vertexInput)
 
 float3 ApplyShadowBias(float3 positionWS, float3 normalWS, float3 lightDirection)
 {
-    float invNdotL = 1.0 - saturate(dot(lightDirection, normalWS));
-    float scale = invNdotL * _ShadowBias.y;
+    float NdotL = saturate(dot(lightDirection, normalWS));
+    float scale = sqrt(1.0 - NdotL * NdotL) * _ShadowBias.y;
 
     // normal bias is negative since we want to apply an inset normal offset
     //在这里先应用了DepthBias，应该是去掉自遮挡的现象
