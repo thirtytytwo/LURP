@@ -226,6 +226,7 @@ namespace UnityEngine.Rendering.Universal
             this.m_CopyDepthMode = data.copyDepthMode;
             useRenderPassEnabled = data.useNativeRenderPass && SystemInfo.graphicsDeviceType != GraphicsDeviceType.OpenGLES2;
 
+            //use MSAA in this platform can reduce the performance, so ban it
 #if UNITY_ANDROID || UNITY_IOS || UNITY_TVOS
             this.m_DepthPrimingRecommended = false;
 #else
@@ -586,6 +587,7 @@ namespace UnityEngine.Rendering.Universal
             }
 #endif
             // Temporarily disable depth priming on certain platforms such as Vulkan because we lack proper depth resolve support.
+            // probably unity can't support the multi-sample depth texture in vulkan
             useDepthPriming &= SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan || cameraTargetDescriptor.msaaSamples == 1;
 
             if (useRenderPassEnabled || useDepthPriming)

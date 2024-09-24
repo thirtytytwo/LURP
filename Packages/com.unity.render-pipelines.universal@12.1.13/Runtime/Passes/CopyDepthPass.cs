@@ -46,6 +46,9 @@ namespace UnityEngine.Rendering.Universal.Internal
             descriptor.colorFormat = RenderTextureFormat.Depth;
             descriptor.depthBufferBits = UniversalRenderer.k_DepthStencilBufferBits;
             descriptor.msaaSamples = 1;
+            //down sample depth texture
+            descriptor.width >>= 1;
+            descriptor.height >>= 1;
             if (this.AllocateRT)
                 cmd.GetTemporaryRT(destination.id, descriptor, FilterMode.Point);
 
