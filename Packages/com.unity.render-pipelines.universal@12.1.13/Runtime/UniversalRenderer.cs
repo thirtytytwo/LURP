@@ -588,7 +588,7 @@ namespace UnityEngine.Rendering.Universal
 #endif
             // Temporarily disable depth priming on certain platforms such as Vulkan because we lack proper depth resolve support.
             // probably unity can't support the multi-sample depth texture in vulkan
-            useDepthPriming &= SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan || cameraTargetDescriptor.msaaSamples == 1;
+            //useDepthPriming &= SystemInfo.graphicsDeviceType != GraphicsDeviceType.Vulkan || cameraTargetDescriptor.msaaSamples == 1;
 
             if (useRenderPassEnabled || useDepthPriming)
             {
@@ -684,42 +684,17 @@ namespace UnityEngine.Rendering.Universal
 
             if (requiresDepthPrepass)
             {
-                if (renderPassInputs.requiresNormalsTexture)
+                if (!cameraData.camera.CompareTag("UICamera"))
                 {
-                    if (this.actualRenderingMode == RenderingMode.Deferred)
-                    {
-                        // In deferred mode, depth-normal prepass does really primes the depth and normal buffers, instead of creating a copy.
-                        // It is necessary because we need to render depth&normal for forward-only geometry and it is the only way
-                        // to get them before the SSAO pass.
-
-                        int gbufferNormalIndex = m_DeferredLights.GBufferNormalSmoothnessIndex;
-                        m_DepthNormalPrepass.Setup(cameraTargetDescriptor, m_ActiveCameraDepthAttachment, m_DeferredLights.GbufferAttachments[gbufferNormalIndex]);
-
-                        // Change the normal format to the one used by the gbuffer.
-                        RenderTextureDescriptor normalDescriptor = m_DepthNormalPrepass.normalDescriptor;
-                        normalDescriptor.graphicsFormat = m_DeferredLights.GetGBufferFormat(gbufferNormalIndex);
-                        m_DepthNormalPrepass.normalDescriptor = normalDescriptor;
-                        // Depth is allocated by this renderer.
-                        m_DepthNormalPrepass.allocateDepth = false;
-                        // Only render forward-only geometry, as standard geometry will be rendered as normal into the gbuffer.
-                        if (RenderPassEvent.AfterRenderingGbuffer <= renderPassInputs.requiresDepthNormalAtEvent &&
-                            renderPassInputs.requiresDepthNormalAtEvent <= RenderPassEvent.BeforeRenderingOpaques)
-                            m_DepthNormalPrepass.shaderTagIds = k_DepthNormalsOnly;
-                    }
-                    else
-                    {
-                        m_DepthNormalPrepass.Setup(cameraTargetDescriptor, m_DepthTexture, m_NormalsTexture);
-                    }
-
-                    EnqueuePass(m_DepthNormalPrepass);
-                }
-                else
-                {
-                    // Deferred renderer does not require a depth-prepass to generate samplable depth texture.
-                    if (this.actualRenderingMode != RenderingMode.Deferred)
+                    if (cameraData.depthTextureMode == LDepthTextureMode.Depth)
                     {
                         m_DepthPrepass.Setup(cameraTargetDescriptor, m_DepthTexture);
                         EnqueuePass(m_DepthPrepass);
+                    }
+                    else if (cameraData.depthTextureMode == LDepthTextureMode.DepthNormals)
+                    {
+                        m_DepthNormalPrepass.Setup(cameraTargetDescriptor, m_DepthTexture, m_NormalsTexture);
+                        EnqueuePass(m_DepthNormalPrepass);
                     }
                 }
             }
@@ -729,7 +704,7 @@ namespace UnityEngine.Rendering.Universal
             if (useDepthPriming)
             {
                 m_PrimedDepthCopyPass.Setup(m_ActiveCameraDepthAttachment, m_DepthTexture);
-                m_PrimedDepthCopyPass.AllocateRT = false;
+                m_PrimedDepthCopyPass.AllocateRT = true;
 
                 EnqueuePass(m_PrimedDepthCopyPass);
             }
@@ -786,7 +761,7 @@ namespace UnityEngine.Rendering.Universal
             }
 
             // If a depth texture was created we necessarily need to copy it, otherwise we could have render it to a renderbuffer.
-            if (requiresDepthCopyPass)
+            if (requiresDepthCopyPass && cameraData.depthTextureMode == LDepthTextureMode.Default)
             {
                 m_CopyDepthPass.Setup(m_ActiveCameraDepthAttachment, m_DepthTexture);
 

@@ -78,9 +78,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 desc.msaaSamples = renderingData.cameraData.renderer.useDepthPriming ? m_RendererMSAASamples : 1;
                 cmd.GetTemporaryRT(normalHandle.id, desc, FilterMode.Point);
             }
-            if (this.allocateDepth)
-                cmd.GetTemporaryRT(depthHandle.id, depthDescriptor, FilterMode.Point);
-
+            
             if (renderingData.cameraData.renderer.useDepthPriming && (renderingData.cameraData.renderType == CameraRenderType.Base || renderingData.cameraData.clearDepth))
             {
                 ConfigureTarget(
@@ -90,6 +88,8 @@ namespace UnityEngine.Rendering.Universal.Internal
             }
             else
             {
+                if (this.allocateDepth)
+                    cmd.GetTemporaryRT(depthHandle.id, depthDescriptor, FilterMode.Point);
                 ConfigureTarget(
                     new RenderTargetIdentifier(normalHandle.Identifier(), 0, CubemapFace.Unknown, -1),
                     new RenderTargetIdentifier(depthHandle.Identifier(), 0, CubemapFace.Unknown, -1)

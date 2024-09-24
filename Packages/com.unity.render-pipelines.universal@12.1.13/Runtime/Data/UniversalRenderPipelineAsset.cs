@@ -55,6 +55,17 @@ namespace UnityEngine.Rendering.Universal
         _8x = 8
     }
 
+    public enum LDepthTextureMode
+    {
+        None,
+        [InspectorName("DepthOnly(Copy)")]
+        Default,
+        [InspectorName("DepthOnly(Prepass)")]
+        Depth,
+        [InspectorName("Depth + Normal")]
+        DepthNormals,
+    }
+    
     public enum Downsampling
     {
         None,
@@ -152,6 +163,7 @@ namespace UnityEngine.Rendering.Universal
         [InspectorName("FidelityFX Super Resolution 1.0")]
         FSR
     }
+    
 
     [ExcludeFromPreset]
 #if UNITY_EDITOR
@@ -201,6 +213,7 @@ namespace UnityEngine.Rendering.Universal
 
         // General settings
         [SerializeField] bool m_RequireDepthTexture = false;
+        [SerializeField] LDepthTextureMode m_RequireDepthTextureMode = LDepthTextureMode.None;
         [SerializeField] bool m_RequireOpaqueTexture = false;
         [SerializeField] Downsampling m_OpaqueDownsampling = Downsampling._2xBilinear;
         [SerializeField] bool m_SupportsTerrainHoles = true;
@@ -706,6 +719,11 @@ namespace UnityEngine.Rendering.Universal
         {
             get { return m_RequireDepthTexture; }
             set { m_RequireDepthTexture = value; }
+        }
+        
+        public LDepthTextureMode CameraDepthMode
+        {
+            get { return m_RequireDepthTextureMode; }
         }
 
         public bool supportsCameraOpaqueTexture

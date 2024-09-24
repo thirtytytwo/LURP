@@ -126,6 +126,9 @@ namespace UnityEditor.Rendering.Universal
                     EditorGUILayout.HelpBox(Styles.rendererUnsupportedAPIMessage.text + unsupportedGraphicsApisMessage, MessageType.Warning, true);
 
                 EditorGUILayout.PropertyField(serialized.requireDepthTextureProp, Styles.requireDepthTextureText);
+                EditorGUI.BeginDisabledGroup(!serialized.requireDepthTextureProp.boolValue);
+                EditorGUILayout.PropertyField(serialized.requireDepthTextureModeProp, Styles.requireDepthTextureModeText);
+                EditorGUI.EndDisabledGroup();
                 EditorGUILayout.PropertyField(serialized.requireOpaqueTextureProp, Styles.requireOpaqueTextureText);
                 EditorGUI.BeginDisabledGroup(!serialized.requireOpaqueTextureProp.boolValue);
                 EditorGUILayout.PropertyField(serialized.opaqueDownsamplingProp, Styles.opaqueDownsamplingText);

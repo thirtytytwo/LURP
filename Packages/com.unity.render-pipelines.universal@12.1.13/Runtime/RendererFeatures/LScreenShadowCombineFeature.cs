@@ -10,8 +10,6 @@ namespace UnityEngine.Rendering.Universal
             private ProfilingSampler mShadowCombineSampler = new ProfilingSampler("Gbs Shadow Combine Pass");
             
             private Material mShadowCombineMaterial;
-            //ShaderKeywords
-            private const string mShadowCombineKeyword = "_ENABLE_SHADOWCOMBINE";
 
             //RenderTarget
             private RenderTargetHandle mTarget;
@@ -54,7 +52,6 @@ namespace UnityEngine.Rendering.Universal
                     cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, mShadowCombineMaterial);
                     cmd.SetViewProjectionMatrices(cameraData.camera.worldToCameraMatrix, cameraData.camera.projectionMatrix);
                     cmd.SetGlobalTexture(mTarget.id, mTarget.Identifier());
-                    cmd.EnableShaderKeyword(mShadowCombineKeyword);
                 }
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
@@ -89,8 +86,7 @@ namespace UnityEngine.Rendering.Universal
         public override void Create()
         {
             mShadowCombinePass = new ShadowCombinePass();
-            mShadowCombinePass.renderPassEvent = RenderPassEvent.AfterRenderingPrePasses;
-
+            mShadowCombinePass.renderPassEvent = RenderPassEvent.AfterRenderingPrePasses + 1;
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)

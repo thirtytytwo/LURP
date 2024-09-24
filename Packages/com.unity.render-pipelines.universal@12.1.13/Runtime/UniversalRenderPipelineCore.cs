@@ -150,6 +150,7 @@ namespace UnityEngine.Rendering.Universal
         public bool isHdrEnabled;
         public bool requiresDepthTexture;
         public bool requiresOpaqueTexture;
+        public LDepthTextureMode depthTextureMode;
 
         /// <summary>
         /// Returns true if post processing passes require depth texture.
