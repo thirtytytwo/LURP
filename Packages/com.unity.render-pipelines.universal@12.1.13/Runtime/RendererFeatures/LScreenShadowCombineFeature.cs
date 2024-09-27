@@ -66,28 +66,18 @@ namespace UnityEngine.Rendering.Universal
         class ShadowShadingPass : ScriptableRenderPass
         {
             private ProfilingSampler mShadowShadingSampler = new ProfilingSampler("Gbs Shadow Shading Pass");
+            
+            private static readonly int mShadowCombineTextureID = Shader.PropertyToID("_ShadowCombineTexture");
+            
             private Material mShadowShadingMaterial;
             
             public ShadowShadingPass()
             {
                 mShadowShadingMaterial = new Material(Shader.Find("Hidden/Universal Render Pipeline/ShadowShading"));
-                
             }
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
-                var cmd = CommandBufferPool.Get();
-                var cameraData = renderingData.cameraData;
-                var source = cameraData.renderer.cameraColorTarget;
-                var dest = cameraData.renderer.GetCameraColorFrontBuffer(cmd);
-                using (new ProfilingScope(cmd, mShadowShadingSampler))
-                {
-                    cmd.SetRenderTarget(dest);
-                    cmd.SetGlobalTexture(ShaderPropertyId.sourceTex, source);
-                    cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, mShadowShadingMaterial);
-                    cameraData.renderer.SwapColorBuffer(cmd);
-                }
-                context.ExecuteCommandBuffer(cmd);
-                CommandBufferPool.Release(cmd);
+                throw new System.NotImplementedException();
             }
         }
         
@@ -97,14 +87,11 @@ namespace UnityEngine.Rendering.Universal
         {
             mShadowCombinePass = new ShadowCombinePass();
             mShadowCombinePass.renderPassEvent = RenderPassEvent.AfterRenderingPrePasses + 1;
-            mShadowShadingPass = new ShadowShadingPass();
-            mShadowShadingPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
             renderer.EnqueuePass(mShadowCombinePass);
-            renderer.EnqueuePass(mShadowShadingPass);
         }
 
     }
