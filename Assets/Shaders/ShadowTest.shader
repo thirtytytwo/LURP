@@ -74,8 +74,8 @@ Shader "Shader_yc/ShadowTest"
 
         Pass
         {
-            Name "DepthNormals"
-            Tags{"LightMode" = "DepthNormals"}
+            Name "DepthOnly"
+            Tags{"LightMode" = "DepthOnly"}
 
             ZWrite On
             Cull Back
