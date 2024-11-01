@@ -2,6 +2,7 @@ Shader "Shader_yc/ShadowTest"
 {
     Properties
     {
+        _BaseMap("BaseMap", 2D) = "white" {}
     }
     SubShader
     {
@@ -30,10 +31,10 @@ Shader "Shader_yc/ShadowTest"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
-            TEXTURE2D(_ShadowCombineTexture);
-            SAMPLER(sampler_ShadowCombineTexture);
+
+            TEXTURE2D(_LScreenShadowTexture);
+            SAMPLER(sampler_LScreenShadowTexture);
 
             Varyings Vert(Attributes i)
             {
@@ -63,43 +64,37 @@ Shader "Shader_yc/ShadowTest"
                 half3 finalColor = diffuse + specular;
                 //shadow
                 
-                half shadow = SAMPLE_TEXTURE2D(_ShadowCombineTexture, sampler_ShadowCombineTexture, i.positionSS.xy / i.positionSS.w).r;
+                half shadow = SAMPLE_TEXTURE2D(_LScreenShadowTexture, sampler_LScreenShadowTexture, i.positionSS.xy / i.positionSS.w).r;
                 finalColor *= shadow;
                 
-                half2 color = (i.positionSS.xy / i.positionSS.w);
                 return half4(finalColor, 1);
             }
             ENDHLSL
         }
-
+        
         Pass
         {
             Name "DepthOnly"
             Tags{"LightMode" = "DepthOnly"}
 
             ZWrite On
+            ColorMask 0
             Cull Back
 
             HLSLPROGRAM
+            #pragma exclude_renderers gles gles3 glcore
             #pragma target 4.5
 
-            #pragma vertex DepthNormalsVertex
-            #pragma fragment DepthNormalsFragment
+            #pragma vertex DepthOnlyVertex
+            #pragma fragment DepthOnlyFragment
 
             // -------------------------------------
             // Material Keywords
-            #pragma shader_feature_local _NORMALMAP
-            #pragma shader_feature_local _PARALLAXMAP
-            #pragma shader_feature_local _ _DETAIL_MULX2 _DETAIL_SCALED
             #pragma shader_feature_local_fragment _ALPHATEST_ON
             #pragma shader_feature_local_fragment _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
 
-            //--------------------------------------
-            // GPU Instancing
-            #pragma multi_compile_instancing
-
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/LitDepthNormalsPass.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/Shaders/DepthOnlyPass.hlsl"
             ENDHLSL
         }
 
