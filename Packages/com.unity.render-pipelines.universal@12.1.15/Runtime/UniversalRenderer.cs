@@ -106,7 +106,7 @@ namespace UnityEngine.Rendering.Universal
 #endif
 
         internal RenderTargetBufferSystem m_ColorBufferSystem;
-
+        
         RenderTargetHandle m_ActiveCameraColorAttachment;
         RenderTargetHandle m_ColorFrontBuffer;
         RenderTargetHandle m_ActiveCameraDepthAttachment;
@@ -605,13 +605,18 @@ namespace UnityEngine.Rendering.Universal
             colorDescriptor.depthBufferBits = (int)DepthBits.None;
             m_ColorBufferSystem.SetCameraSettings(colorDescriptor, FilterMode.Bilinear);
 
-            // Configure all settings require to start a new camera stack (base camera only)
+            // Configure all settings require to start a new camera stack (base camera only) 
             if (cameraData.renderType == CameraRenderType.Base)
             {
                 RenderTargetHandle cameraTargetHandle = RenderTargetHandle.GetCameraTarget(cameraData.xr);
                 bool sceneViewFilterEnabled = camera.sceneViewFilterMode == Camera.SceneViewFilterMode.ShowFiltered;
 
                 //Scene filtering redraws the objects on top of the resulting frame. It has to draw directly to the sceneview buffer.
+                if (cameraData.camera.CompareTag("UICamera"))
+                {
+                    createColorTexture = false;
+                    createDepthTexture = false;
+                }
                 m_ActiveCameraColorAttachment = (createColorTexture && !sceneViewFilterEnabled) ? m_ColorBufferSystem.GetBackBuffer() : cameraTargetHandle;
                 m_ActiveCameraDepthAttachment = (createDepthTexture && !sceneViewFilterEnabled) ? m_CameraDepthAttachment : cameraTargetHandle;
 
