@@ -508,8 +508,8 @@ namespace UnityEngine.Rendering.Universal.Internal
                 bool bloomActive = m_Bloom.IsActive();
                 if (bloomActive)
                 {
-                    using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.Bloom)))
-                        SetupBloom(cmd, GetSource(), m_Materials.uber);
+                    using (new ProfilingScope(cmd, ProfilingSampler.Get(URPProfileId.Bloom))) 
+                        BloomFeature.ExecuteBloom(cmd, GetSource(), m_Materials.uber, m_Materials.bloom, m_Bloom, m_Descriptor, m_DefaultHDRFormat);
                 }
 
                 // Setup other effects constants
@@ -622,7 +622,7 @@ namespace UnityEngine.Rendering.Universal.Internal
 
                 // Cleanup
                 if (bloomActive)
-                    cmd.ReleaseTemporaryRT(ShaderConstants._BloomMipUp[0]);
+                    cmd.ReleaseTemporaryRT(BloomFeature.ShaderConstants._BloomCombineRT);
 
                 if (tempTargetUsed)
                     cmd.ReleaseTemporaryRT(ShaderConstants._TempTarget);
@@ -1107,119 +1107,119 @@ namespace UnityEngine.Rendering.Universal.Internal
 
         #region Bloom
 
-        void SetupBloom(CommandBuffer cmd, RenderTargetIdentifier source, Material uberMaterial)
-        {
-            // Start at half-res
-            int tw = m_Descriptor.width >> 1;
-            int th = m_Descriptor.height >> 1;
-
-            // Determine the iteration count
-            int maxSize = Mathf.Max(tw, th);
-            int iterations = Mathf.FloorToInt(Mathf.Log(maxSize, 2f) - 1);
-            iterations -= m_Bloom.skipIterations.value;
-            int mipCount = Mathf.Clamp(iterations, 1, k_MaxPyramidSize);
-
-            // Pre-filtering parameters
-            float clamp = m_Bloom.clamp.value;
-            float threshold = Mathf.GammaToLinearSpace(m_Bloom.threshold.value);
-            float thresholdKnee = threshold * 0.5f; // Hardcoded soft knee
-
-            // Material setup
-            float scatter = Mathf.Lerp(0.05f, 0.95f, m_Bloom.scatter.value);
-            var bloomMaterial = m_Materials.bloom;
-            bloomMaterial.SetVector(ShaderConstants._Params, new Vector4(scatter, clamp, threshold, thresholdKnee));
-            CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.BloomHQ, m_Bloom.highQualityFiltering.value);
-            CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.UseRGBM, m_UseRGBM);
-
-            // Prefilter
-            var desc = GetCompatibleDescriptor(tw, th, m_DefaultHDRFormat);
-            cmd.GetTemporaryRT(ShaderConstants._BloomMipDown[0], desc, FilterMode.Bilinear);
-            cmd.GetTemporaryRT(ShaderConstants._BloomMipUp[0], desc, FilterMode.Bilinear);
-            Blit(cmd, source, ShaderConstants._BloomMipDown[0], bloomMaterial, 0);
-
-            // Downsample - gaussian pyramid
-            int lastDown = ShaderConstants._BloomMipDown[0];
-            for (int i = 1; i < mipCount; i++)
-            {
-                tw = Mathf.Max(1, tw >> 1);
-                th = Mathf.Max(1, th >> 1);
-                int mipDown = ShaderConstants._BloomMipDown[i];
-                int mipUp = ShaderConstants._BloomMipUp[i];
-
-                desc.width = tw;
-                desc.height = th;
-
-                cmd.GetTemporaryRT(mipDown, desc, FilterMode.Bilinear);
-                cmd.GetTemporaryRT(mipUp, desc, FilterMode.Bilinear);
-
-                // Classic two pass gaussian blur - use mipUp as a temporary target
-                //   First pass does 2x downsampling + 9-tap gaussian
-                //   Second pass does 9-tap gaussian using a 5-tap filter + bilinear filtering
-                Blit(cmd, lastDown, mipUp, bloomMaterial, 1);
-                Blit(cmd, mipUp, mipDown, bloomMaterial, 2);
-
-                lastDown = mipDown;
-            }
-
-            // Upsample (bilinear by default, HQ filtering does bicubic instead
-            for (int i = mipCount - 2; i >= 0; i--)
-            {
-                int lowMip = (i == mipCount - 2) ? ShaderConstants._BloomMipDown[i + 1] : ShaderConstants._BloomMipUp[i + 1];
-                int highMip = ShaderConstants._BloomMipDown[i];
-                int dst = ShaderConstants._BloomMipUp[i];
-
-                cmd.SetGlobalTexture(ShaderConstants._SourceTexLowMip, lowMip);
-                Blit(cmd, highMip, BlitDstDiscardContent(cmd, dst), bloomMaterial, 3);
-            }
-
-            // Cleanup
-            for (int i = 0; i < mipCount; i++)
-            {
-                cmd.ReleaseTemporaryRT(ShaderConstants._BloomMipDown[i]);
-                if (i > 0) cmd.ReleaseTemporaryRT(ShaderConstants._BloomMipUp[i]);
-            }
-
-            // Setup bloom on uber
-            var tint = m_Bloom.tint.value.linear;
-            var luma = ColorUtils.Luminance(tint);
-            tint = luma > 0f ? tint * (1f / luma) : Color.white;
-
-            var bloomParams = new Vector4(m_Bloom.intensity.value, tint.r, tint.g, tint.b);
-            uberMaterial.SetVector(ShaderConstants._Bloom_Params, bloomParams);
-            uberMaterial.SetFloat(ShaderConstants._Bloom_RGBM, m_UseRGBM ? 1f : 0f);
-
-            cmd.SetGlobalTexture(ShaderConstants._Bloom_Texture, ShaderConstants._BloomMipUp[0]);
-
-            // Setup lens dirtiness on uber
-            // Keep the aspect ratio correct & center the dirt texture, we don't want it to be
-            // stretched or squashed
-            var dirtTexture = m_Bloom.dirtTexture.value == null ? Texture2D.blackTexture : m_Bloom.dirtTexture.value;
-            float dirtRatio = dirtTexture.width / (float)dirtTexture.height;
-            float screenRatio = m_Descriptor.width / (float)m_Descriptor.height;
-            var dirtScaleOffset = new Vector4(1f, 1f, 0f, 0f);
-            float dirtIntensity = m_Bloom.dirtIntensity.value;
-
-            if (dirtRatio > screenRatio)
-            {
-                dirtScaleOffset.x = screenRatio / dirtRatio;
-                dirtScaleOffset.z = (1f - dirtScaleOffset.x) * 0.5f;
-            }
-            else if (screenRatio > dirtRatio)
-            {
-                dirtScaleOffset.y = dirtRatio / screenRatio;
-                dirtScaleOffset.w = (1f - dirtScaleOffset.y) * 0.5f;
-            }
-
-            uberMaterial.SetVector(ShaderConstants._LensDirt_Params, dirtScaleOffset);
-            uberMaterial.SetFloat(ShaderConstants._LensDirt_Intensity, dirtIntensity);
-            uberMaterial.SetTexture(ShaderConstants._LensDirt_Texture, dirtTexture);
-
-            // Keyword setup - a bit convoluted as we're trying to save some variants in Uber...
-            if (m_Bloom.highQualityFiltering.value)
-                uberMaterial.EnableKeyword(dirtIntensity > 0f ? ShaderKeywordStrings.BloomHQDirt : ShaderKeywordStrings.BloomHQ);
-            else
-                uberMaterial.EnableKeyword(dirtIntensity > 0f ? ShaderKeywordStrings.BloomLQDirt : ShaderKeywordStrings.BloomLQ);
-        }
+        // void SetupBloom(CommandBuffer cmd, RenderTargetIdentifier source, Material uberMaterial)
+        // {
+        //     // Start at half-res
+        //     int tw = m_Descriptor.width >> 1;
+        //     int th = m_Descriptor.height >> 1;
+        //
+        //     // Determine the iteration count
+        //     int maxSize = Mathf.Max(tw, th);
+        //     int iterations = Mathf.FloorToInt(Mathf.Log(maxSize, 2f) - 1);
+        //     iterations -= m_Bloom.skipIterations.value;
+        //     int mipCount = Mathf.Clamp(iterations, 1, k_MaxPyramidSize);
+        //
+        //     // Pre-filtering parameters
+        //     float clamp = m_Bloom.clamp.value;
+        //     float threshold = Mathf.GammaToLinearSpace(m_Bloom.threshold.value);
+        //     float thresholdKnee = threshold * 0.5f; // Hardcoded soft knee
+        //
+        //     // Material setup
+        //     float scatter = Mathf.Lerp(0.05f, 0.95f, m_Bloom.scatter.value);
+        //     var bloomMaterial = m_Materials.bloom;
+        //     bloomMaterial.SetVector(ShaderConstants._Params, new Vector4(scatter, clamp, threshold, thresholdKnee));
+        //     CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.BloomHQ, m_Bloom.highQualityFiltering.value);
+        //     CoreUtils.SetKeyword(bloomMaterial, ShaderKeywordStrings.UseRGBM, m_UseRGBM);
+        //
+        //     // Prefilter
+        //     var desc = GetCompatibleDescriptor(tw, th, m_DefaultHDRFormat);
+        //     cmd.GetTemporaryRT(ShaderConstants._BloomMipDown[0], desc, FilterMode.Bilinear);
+        //     cmd.GetTemporaryRT(ShaderConstants._BloomMipUp[0], desc, FilterMode.Bilinear);
+        //     Blit(cmd, source, ShaderConstants._BloomMipDown[0], bloomMaterial, 0);
+        //
+        //     // Downsample - gaussian pyramid
+        //     int lastDown = ShaderConstants._BloomMipDown[0];
+        //     for (int i = 1; i < mipCount; i++)
+        //     {
+        //         tw = Mathf.Max(1, tw >> 1);
+        //         th = Mathf.Max(1, th >> 1);
+        //         int mipDown = ShaderConstants._BloomMipDown[i];
+        //         int mipUp = ShaderConstants._BloomMipUp[i];
+        //
+        //         desc.width = tw;
+        //         desc.height = th;
+        //
+        //         cmd.GetTemporaryRT(mipDown, desc, FilterMode.Bilinear);
+        //         cmd.GetTemporaryRT(mipUp, desc, FilterMode.Bilinear);
+        //
+        //         // Classic two pass gaussian blur - use mipUp as a temporary target
+        //         //   First pass does 2x downsampling + 9-tap gaussian
+        //         //   Second pass does 9-tap gaussian using a 5-tap filter + bilinear filtering
+        //         Blit(cmd, lastDown, mipUp, bloomMaterial, 1);
+        //         Blit(cmd, mipUp, mipDown, bloomMaterial, 2);
+        //
+        //         lastDown = mipDown;
+        //     }
+        //
+        //     // Upsample (bilinear by default, HQ filtering does bicubic instead
+        //     for (int i = mipCount - 2; i >= 0; i--)
+        //     {
+        //         int lowMip = (i == mipCount - 2) ? ShaderConstants._BloomMipDown[i + 1] : ShaderConstants._BloomMipUp[i + 1];
+        //         int highMip = ShaderConstants._BloomMipDown[i];
+        //         int dst = ShaderConstants._BloomMipUp[i];
+        //
+        //         cmd.SetGlobalTexture(ShaderConstants._SourceTexLowMip, lowMip);
+        //         Blit(cmd, highMip, BlitDstDiscardContent(cmd, dst), bloomMaterial, 3);
+        //     }
+        //
+        //     // Cleanup
+        //     for (int i = 0; i < mipCount; i++)
+        //     {
+        //         cmd.ReleaseTemporaryRT(ShaderConstants._BloomMipDown[i]);
+        //         if (i > 0) cmd.ReleaseTemporaryRT(ShaderConstants._BloomMipUp[i]);
+        //     }
+        //
+        //     // Setup bloom on uber
+        //     var tint = m_Bloom.tint.value.linear;
+        //     var luma = ColorUtils.Luminance(tint);
+        //     tint = luma > 0f ? tint * (1f / luma) : Color.white;
+        //
+        //     var bloomParams = new Vector4(m_Bloom.intensity.value, tint.r, tint.g, tint.b);
+        //     uberMaterial.SetVector(ShaderConstants._Bloom_Params, bloomParams);
+        //     uberMaterial.SetFloat(ShaderConstants._Bloom_RGBM, m_UseRGBM ? 1f : 0f);
+        //
+        //     cmd.SetGlobalTexture(ShaderConstants._Bloom_Texture, ShaderConstants._BloomMipUp[0]);
+        //
+        //     // Setup lens dirtiness on uber
+        //     // Keep the aspect ratio correct & center the dirt texture, we don't want it to be
+        //     // stretched or squashed
+        //     var dirtTexture = m_Bloom.dirtTexture.value == null ? Texture2D.blackTexture : m_Bloom.dirtTexture.value;
+        //     float dirtRatio = dirtTexture.width / (float)dirtTexture.height;
+        //     float screenRatio = m_Descriptor.width / (float)m_Descriptor.height;
+        //     var dirtScaleOffset = new Vector4(1f, 1f, 0f, 0f);
+        //     float dirtIntensity = m_Bloom.dirtIntensity.value;
+        //
+        //     if (dirtRatio > screenRatio)
+        //     {
+        //         dirtScaleOffset.x = screenRatio / dirtRatio;
+        //         dirtScaleOffset.z = (1f - dirtScaleOffset.x) * 0.5f;
+        //     }
+        //     else if (screenRatio > dirtRatio)
+        //     {
+        //         dirtScaleOffset.y = dirtRatio / screenRatio;
+        //         dirtScaleOffset.w = (1f - dirtScaleOffset.y) * 0.5f;
+        //     }
+        //
+        //     uberMaterial.SetVector(ShaderConstants._LensDirt_Params, dirtScaleOffset);
+        //     uberMaterial.SetFloat(ShaderConstants._LensDirt_Intensity, dirtIntensity);
+        //     uberMaterial.SetTexture(ShaderConstants._LensDirt_Texture, dirtTexture);
+        //
+        //     // Keyword setup - a bit convoluted as we're trying to save some variants in Uber...
+        //     if (m_Bloom.highQualityFiltering.value)
+        //         uberMaterial.EnableKeyword(dirtIntensity > 0f ? ShaderKeywordStrings.BloomHQDirt : ShaderKeywordStrings.BloomHQ);
+        //     else
+        //         uberMaterial.EnableKeyword(dirtIntensity > 0f ? ShaderKeywordStrings.BloomLQDirt : ShaderKeywordStrings.BloomLQ);
+        // }
 
         #endregion
 

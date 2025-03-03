@@ -26,10 +26,10 @@ namespace UnityEditor.Rendering.Universal
             m_Scatter = Unpack(o.Find(x => x.scatter));
             m_Clamp = Unpack(o.Find(x => x.clamp));
             m_Tint = Unpack(o.Find(x => x.tint));
-            m_HighQualityFiltering = Unpack(o.Find(x => x.highQualityFiltering));
-            m_SkipIterations = Unpack(o.Find(x => x.skipIterations));
-            m_DirtTexture = Unpack(o.Find(x => x.dirtTexture));
-            m_DirtIntensity = Unpack(o.Find(x => x.dirtIntensity));
+            // m_HighQualityFiltering = Unpack(o.Find(x => x.highQualityFiltering));
+            // m_SkipIterations = Unpack(o.Find(x => x.skipIterations));
+            // m_DirtTexture = Unpack(o.Find(x => x.dirtTexture));
+            // m_DirtIntensity = Unpack(o.Find(x => x.dirtIntensity));
         }
 
         public override void OnInspectorGUI()

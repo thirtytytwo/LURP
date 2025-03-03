@@ -1,215 +1,278 @@
 Shader "Hidden/Universal Render Pipeline/Bloom"
 {
     HLSLINCLUDE
-        #pragma exclude_renderers gles
-        #pragma multi_compile_local _ _USE_RGBM
-        #pragma multi_compile _ _USE_DRAW_PROCEDURAL
-
+        
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
-        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Filtering.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
+    
 
         TEXTURE2D_X(_SourceTex);
-        float4 _SourceTex_TexelSize;
-        TEXTURE2D_X(_SourceTexLowMip);
-        float4 _SourceTexLowMip_TexelSize;
-
-        float4 _Params; // x: scatter, y: clamp, z: threshold (linear), w: threshold knee
-
-        #define Scatter             _Params.x
-        #define ClampMax            _Params.y
-        #define Threshold           _Params.z
-        #define ThresholdKnee       _Params.w
-
-        half4 EncodeHDR(half3 color)
+        float2 _SourceTex_TexelSize;
+    
+        //Struct
+        struct a2v
         {
-        #if _USE_RGBM
-            half4 outColor = EncodeRGBM(color);
-        #else
-            half4 outColor = half4(color, 1.0);
-        #endif
-
-        #if UNITY_COLORSPACE_GAMMA
-            return half4(sqrt(outColor.xyz), outColor.w); // linear to γ
-        #else
-            return outColor;
-        #endif
-        }
-
-        half3 DecodeHDR(half4 color)
+            float4 positionOS:POSITION;
+            float2 uv:TEXCOORD0;
+        };
+        struct v2f_single
         {
-        #if UNITY_COLORSPACE_GAMMA
-            color.xyz *= color.xyz; // γ to linear
-        #endif
-
-        #if _USE_RGBM
-            return DecodeRGBM(color);
-        #else
-            return color.xyz;
-        #endif
-        }
-
-        half4 FragPrefilter(Varyings input) : SV_Target
+            float4 positionCS : SV_POSITION;
+            float2 uv         : TEXCOORD0;
+        };
+        struct v2f_multi
         {
-            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-            float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
-
-        #if _BLOOM_HQ
-            float texelSize = _SourceTex_TexelSize.x;
-            half4 A = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(-1.0, -1.0));
-            half4 B = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(0.0, -1.0));
-            half4 C = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(1.0, -1.0));
-            half4 D = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(-0.5, -0.5));
-            half4 E = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(0.5, -0.5));
-            half4 F = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(-1.0, 0.0));
-            half4 G = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv);
-            half4 H = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(1.0, 0.0));
-            half4 I = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(-0.5, 0.5));
-            half4 J = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(0.5, 0.5));
-            half4 K = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(-1.0, 1.0));
-            half4 L = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(0.0, 1.0));
-            half4 M = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + texelSize * float2(1.0, 1.0));
-
-            half2 div = (1.0 / 4.0) * half2(0.5, 0.125);
-
-            half4 o = (D + E + I + J) * div.x;
-            o += (A + B + G + F) * div.y;
-            o += (B + C + H + G) * div.y;
-            o += (F + G + L + K) * div.y;
-            o += (G + H + M + L) * div.y;
-
-            half3 color = o.xyz;
-        #else
-            half3 color = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv).xyz;
-        #endif
-
-            // User controlled clamp to limit crazy high broken spec
-            color = min(ClampMax, color);
-
-            // Thresholding
-            half brightness = Max3(color.r, color.g, color.b);
-            half softness = clamp(brightness - Threshold + ThresholdKnee, 0.0, 2.0 * ThresholdKnee);
-            softness = (softness * softness) / (4.0 * ThresholdKnee + 1e-4);
-            half multiplier = max(brightness - Threshold, softness) / max(brightness, 1e-4);
-            color *= multiplier;
-
-            // Clamp colors to positive once in prefilter. Encode can have a sqrt, and sqrt(-x) == NaN. Up/Downsample passes would then spread the NaN.
-            color = max(color, 0);
-            return EncodeHDR(color);
-        }
-
-        half4 FragBlurH(Varyings input) : SV_Target
-        {
-            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-            float texelSize = _SourceTex_TexelSize.x * 2.0;
-            float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
-
-            // 9-tap gaussian blur on the downsampled source
-            half3 c0 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv - float2(texelSize * 4.0, 0.0)));
-            half3 c1 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv - float2(texelSize * 3.0, 0.0)));
-            half3 c2 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv - float2(texelSize * 2.0, 0.0)));
-            half3 c3 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv - float2(texelSize * 1.0, 0.0)));
-            half3 c4 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv                               ));
-            half3 c5 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + float2(texelSize * 1.0, 0.0)));
-            half3 c6 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + float2(texelSize * 2.0, 0.0)));
-            half3 c7 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + float2(texelSize * 3.0, 0.0)));
-            half3 c8 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + float2(texelSize * 4.0, 0.0)));
-
-            half3 color = c0 * 0.01621622 + c1 * 0.05405405 + c2 * 0.12162162 + c3 * 0.19459459
-                        + c4 * 0.22702703
-                        + c5 * 0.19459459 + c6 * 0.12162162 + c7 * 0.05405405 + c8 * 0.01621622;
-
-            return EncodeHDR(color);
-        }
-
-        half4 FragBlurV(Varyings input) : SV_Target
-        {
-            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-            float texelSize = _SourceTex_TexelSize.y;
-            float2 uv = UnityStereoTransformScreenSpaceTex(input.uv);
-
-            // Optimized bilinear 5-tap gaussian on the same-sized source (9-tap equivalent)
-            half3 c0 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv - float2(0.0, texelSize * 3.23076923)));
-            half3 c1 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv - float2(0.0, texelSize * 1.38461538)));
-            half3 c2 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv                                      ));
-            half3 c3 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + float2(0.0, texelSize * 1.38461538)));
-            half3 c4 = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv + float2(0.0, texelSize * 3.23076923)));
-
-            half3 color = c0 * 0.07027027 + c1 * 0.31621622
-                        + c2 * 0.22702703
-                        + c3 * 0.31621622 + c4 * 0.07027027;
-
-            return EncodeHDR(color);
-        }
-
-        half3 Upsample(float2 uv)
-        {
-            half3 highMip = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, uv));
-
-        #if _BLOOM_HQ && !defined(SHADER_API_GLES)
-            half3 lowMip = DecodeHDR(SampleTexture2DBicubic(TEXTURE2D_X_ARGS(_SourceTexLowMip, sampler_LinearClamp), uv, _SourceTexLowMip_TexelSize.zwxy, (1.0).xx, unity_StereoEyeIndex));
-        #else
-            half3 lowMip = DecodeHDR(SAMPLE_TEXTURE2D_X(_SourceTexLowMip, sampler_LinearClamp, uv));
-        #endif
-
-            return lerp(highMip, lowMip, Scatter);
-        }
-
-        half4 FragUpsample(Varyings input) : SV_Target
-        {
-            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-            half3 color = Upsample(UnityStereoTransformScreenSpaceTex(input.uv));
-            return EncodeHDR(color);
-        }
-
+            float4 positionCS:SV_POSITION;
+            float4 texcoord0 :TEXCOORD0;
+            float4 texcoord1 :TEXCOORD1;
+        };
+    
     ENDHLSL
-
+    
     SubShader
     {
-        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline"}
+        Tags { "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" }
+        ZTest Always Cull Off ZWrite Off Blend Off
         LOD 100
-        ZTest Always ZWrite Off Cull Off
+        
 
         Pass
         {
-            Name "Bloom Prefilter"
-
+            Name "Bloom_Prefilter"
             HLSLPROGRAM
-                #pragma vertex FullscreenVert
-                #pragma fragment FragPrefilter
-                #pragma multi_compile_local _ _BLOOM_HQ
+            
+            #pragma vertex Vert
+            #pragma fragment Frag
+
+            float4 _PreFilterParam;
+            #define SCATTER _PreFilterParam.x
+            #define CLAMP _PreFilterParam.y
+            #define THRESHOLD _PreFilterParam.z
+            #define THRESHOLDKNEE _PreFilterParam.w
+
+
+            v2f_single Vert(a2v i)
+            {
+                v2f_single o;
+                o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
+                float u = i.positionOS.x * 0.5f + 0.5f;
+                float v = i.positionOS.y * 0.5f + 0.5;
+                #if UNITY_UV_STARTS_AT_TOP
+                v = 1.0f - v;
+                #endif
+                o.uv = float2(u,v);
+                return o;
+            }
+
+            half4 Frag(v2f_single i) : SV_Target
+            {
+                half4 col = SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, i.uv);
+                col = min(CLAMP, col);
+
+                //thresholding
+                half brightness = Max3(col.r, col.g, col.b);
+                half softness = clamp(brightness - THRESHOLD + THRESHOLDKNEE, 0.0, 2.0 * THRESHOLDKNEE);
+                softness = (softness * softness) / (4.0 * THRESHOLDKNEE + 1e-4);
+                half multiplier = max(brightness - THRESHOLD, softness) / max(brightness, 1e-4);
+                col *= multiplier;
+                col = max(col,0); 
+                return col;
+            }
             ENDHLSL
         }
-
+        
         Pass
         {
-            Name "Bloom Blur Horizontal"
-
+            Name"Bloom_DownSample"
             HLSLPROGRAM
-                #pragma vertex FullscreenVert
-                #pragma fragment FragBlurH
+
+            #pragma vertex Vert
+            #pragma fragment Frag
+            
+            v2f_multi Vert(a2v i)
+            {
+                v2f_multi o;
+                o.positionCS = o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
+                float u = i.positionOS.x * 0.5f + 0.5f;
+                float v = i.positionOS.y * 0.5f + 0.5;
+                #if UNITY_UV_STARTS_AT_TOP
+                v = 1.0f - v;
+                #endif
+                float2 uv = float2(u,v);
+                o.texcoord0 = _SourceTex_TexelSize.xyxy * float4(-0.5, 0.5,-0.5,-0.5) + uv.xyxy;
+                o.texcoord1 = _SourceTex_TexelSize.xyxy * float4(0.5, -0.5, 0.5, 0.5) + uv.xyxy;
+                return o;
+            }
+
+            half4 Frag(v2f_multi input) : SV_Target
+            {
+                half4 col = SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, input.texcoord0.xy);
+                col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, input.texcoord0.zw);
+                col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, input.texcoord1.xy);
+                col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, input.texcoord1.zw);
+                col *= 0.25;
+                return col;
+            }
             ENDHLSL
         }
-
+        
         Pass
         {
-            Name "Bloom Blur Vertical"
-
+            Name "Bloom_Atlas Combine And Blur Horizontal"
             HLSLPROGRAM
-                #pragma vertex FullscreenVert
-                #pragma fragment FragBlurV
+            
+            #pragma vertex Vert
+            #pragma fragment Frag
+
+            #pragma multi_compile_local_fragment _ _DEFAULT_KERNAL
+
+            CBUFFER_START(UnityBloomAltlasParam)
+            int    _LoopTime;
+            float4 _ScaleXYAndBlurKernals[16];
+            CBUFFER_END
+
+            v2f_single Vert(a2v i)
+            {
+                v2f_single o;
+                o.positionCS = o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
+                float u = i.positionOS.x * 0.5f + 0.5f;
+                float v = i.positionOS.y * 0.5f + 0.5;
+                #if UNITY_UV_STARTS_AT_TOP
+                v = 1.0f - v;
+                #endif
+                o.uv = float2(u,v);
+
+                return o;
+            }
+
+            half4 Frag(v2f_single input):SV_Target
+            {
+                half4 col = 0;
+                float2 newUV;
+                #ifdef _DEFAULTBLUR
+                newUV = input.uv;
+                float texelSize = _SourceTex_TexelSize.x;
+                half3 c0 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV - float2(texelSize * 3.23076923, 0.0);
+                half3 c1 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV - float2(texelSize * 1.38461538, 0.0);
+                half3 c2 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV                                     );
+                half3 c3 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV + float2(texelSize * 1.38461538, 0.0);
+                half3 c4 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV + float2(texelSize * 3.23076923, 0.0);
+                col = c0 * 0.07027027 + c1 * 0.31621622 + c2 * 0.22702703 + c3 * 0.31621622 + c4 * 0.07027027;
+                #else
+                for (int i = 0; i <_LoopTime; i++)
+                {
+                    newUV = _ScaleXYAndBlurKernals[i].xy * float2(1,0) + input.uv;
+                    col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV) * _ScaleXYAndBlurKernals[i].z;
+                }
+                #endif
+                //TODO:是否还需要一个整体的调整参数col *= 
+                return col;
+            }
             ENDHLSL
         }
-
+        
         Pass
         {
-            Name "Bloom Upsample"
-
+            Name"Bloom_Atlas Combine And Blur Vertical"
             HLSLPROGRAM
-                #pragma vertex FullscreenVert
-                #pragma fragment FragUpsample
-                #pragma multi_compile_local _ _BLOOM_HQ
+
+            #pragma vertex Vert
+            #pragma fragment Frag
+
+            #pragma multi_compile_local_fragment _ _DEFAULT_KERNAL
+
+            CBUFFER_START(UnityBloomAltlasParam)
+            int    _LoopTime;
+            float4 _ScaleXYAndBlurKernals[16];
+            float4 _SampleEdge;
+            float4 _UVScaleAndOffsetFrag;
+            CBUFFER_END
+
+            v2f_single Vert(a2v i)
+            {
+                v2f_single o;
+                o.positionCS = o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
+                float u = i.positionOS.x * 0.5f + 0.5f;
+                float v = i.positionOS.y * 0.5f + 0.5;
+                #if UNITY_UV_STARTS_AT_TOP
+                v = 1.0f - v;
+                #endif
+                o.uv = float2(u,v);
+
+                return o;
+            }
+
+            half4 Frag(v2f_single input):SV_Target
+            {
+                half4 col = 0;
+                float2 newUV = input.uv * _UVScaleAndOffsetFrag.xy + _UVScaleAndOffsetFrag.zw;
+                float2 sampleUV;
+                #ifdef _DEFAULTBLUR
+                newUV = input.uv;
+                float texelSize = _SourceTex_TexelSize.y;
+                half3 c0 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV - float2(0.0, texelSize * 3.23076923);
+                half3 c1 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV - float2(0.0, texelSize * 1.38461538);
+                half3 c2 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV                                     );
+                half3 c3 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV + float2(0.0, texelSize * 1.38461538);
+                half3 c4 = SAMPLE_TEXTURE2D_X(_SourceTex, sampler_LinearClamp, newUV + float2(0.0, texelSize * 3.23076923);
+                col = c0 * 0.07027027 + c1 * 0.31621622 + c2 * 0.22702703 + c3 * 0.31621622 + c4 * 0.07027027;
+                #else
+                for (int i = 0; i <_LoopTime; i++)
+                {
+                    sampleUV = _ScaleXYAndBlurKernals[i].xy * float2(0,1)+ newUV;
+                    sampleUV = max(sampleUV, _SampleEdge.xy);
+                    sampleUV = min(sampleUV, _SampleEdge.zw);
+                    col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, sampleUV) * _ScaleXYAndBlurKernals[i].z;
+                }
+                #endif
+                //TODO:是否还需要一个整体的调整参数col *= 
+                return col;
+            }
+            ENDHLSL
+        }
+        
+        Pass
+        {
+            Name"Bloom_Final Combine"
+            HLSLPROGRAM
+
+            #pragma vertex Vert
+            #pragma fragment Frag
+
+            CBUFFER_START(UnityBloomAltlasParam)
+            float4 _SampleScaleAndOffset[4];
+            CBUFFER_END
+
+            v2f_single Vert(a2v i)
+            {
+                v2f_single o;
+                o.positionCS = o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
+                float u = i.positionOS.x * 0.5f + 0.5f;
+                float v = i.positionOS.y * 0.5f + 0.5f;
+                #if UNITY_UV_STARTS_AT_TOP
+                v = 1.0f - v;
+                #endif
+                o.uv = float2(u,v);
+
+                return o;
+            }
+
+            
+            half4 Frag(v2f_single input):SV_Target
+            {
+                half4 col = 0;
+                float2 newUV;
+                UNITY_UNROLL
+                for (int i = 0; i < 4; i++)
+                {
+                    newUV = _SampleScaleAndOffset[i].xy * input.uv + _SampleScaleAndOffset[i].zw;
+                    col += SAMPLE_TEXTURE2D(_SourceTex, sampler_LinearClamp, newUV)  ;
+                }
+                //TODO:是否还需要一个整体的调整参数col *= 
+                return col;
+            }
+            
             ENDHLSL
         }
     }

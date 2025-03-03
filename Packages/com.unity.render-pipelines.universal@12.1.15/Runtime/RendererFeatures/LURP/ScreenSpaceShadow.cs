@@ -3,7 +3,7 @@ using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
-    public class LScreenSpaceShadow : ScriptableRendererFeature
+    public class ScreenSpaceShadow : ScriptableRendererFeature
     {
         class ShadowCombinePass:ScriptableRenderPass
         {
