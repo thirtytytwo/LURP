@@ -3,7 +3,7 @@ using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal
 {
-    public class ScreenSpaceShadow : ScriptableRendererFeature
+    public class LScreenSpaceShadow : ScriptableRendererFeature
     {
         class ShadowCombinePass:ScriptableRenderPass
         {
@@ -21,7 +21,7 @@ namespace UnityEngine.Rendering.Universal
             }
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
-                //RT 尺寸为 摄像机的 一半
+                //RT ???? ??????? ???
                 var desc = renderingData.cameraData.cameraTargetDescriptor;
                 desc.width >>= 1;
                 desc.height >>= 1;

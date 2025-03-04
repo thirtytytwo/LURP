@@ -80,7 +80,7 @@ namespace UnityEngine.Rendering.Universal
         DepthNormalOnlyPass m_DepthNormalPrepass;
         CopyDepthPass m_PrimedDepthCopyPass;
         MotionVectorRenderPass m_MotionVectorPass;
-        MainLightShadowCasterPass m_MainLightShadowCasterPass;
+        MainLightShadowCasterCachePass m_MainLightShadowCasterPass;
         AdditionalLightsShadowCasterPass m_AdditionalLightsShadowCasterPass;
         GBufferPass m_GBufferPass;
         CopyDepthPass m_GBufferCopyDepthPass;
@@ -236,7 +236,7 @@ namespace UnityEngine.Rendering.Universal
 
             // Note: Since all custom render passes inject first and we have stable sort,
             // we inject the builtin passes in the before events.
-            m_MainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
+            m_MainLightShadowCasterPass = new MainLightShadowCasterCachePass(RenderPassEvent.BeforeRenderingShadows);
             m_AdditionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
 
 #if ENABLE_VR && ENABLE_XR_MODULE
@@ -505,8 +505,15 @@ namespace UnityEngine.Rendering.Universal
 #else
             bool isGizmosEnabled = false;
 #endif
-
-            bool mainLightShadows = m_MainLightShadowCasterPass.Setup(ref renderingData);
+            bool mainLightShadows = false;
+#if UNITY_EDITOR
+            if (!isSceneViewOrPreviewCamera)
+            {
+                mainLightShadows = m_MainLightShadowCasterPass.Setup(ref renderingData);
+            }
+#else
+            mainLightShadows = m_MainLightShadowCasterPass.Setup(ref renderingData);            
+#endif
             bool additionalLightShadows = m_AdditionalLightsShadowCasterPass.Setup(ref renderingData);
             bool transparentsNeedSettingsPass = m_TransparentSettingsPass.Setup(ref renderingData);
             bool forcePrepass = (m_CopyDepthMode == CopyDepthMode.ForcePrepass);
