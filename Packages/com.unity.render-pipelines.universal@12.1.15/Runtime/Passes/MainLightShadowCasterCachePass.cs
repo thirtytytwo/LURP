@@ -115,18 +115,20 @@ namespace UnityEngine.Rendering.Universal.Internal
             m_MaxShadowDistanceSq = renderingData.cameraData.maxShadowDistance * renderingData.cameraData.maxShadowDistance;
             m_CascadeBorder = renderingData.shadowData.mainLightShadowCascadeBorder;
             m_CreateEmptyShadowmap = false;
+            //设置为false，因为移动端需要Store和load，使用native会因dontcare而报错
             useNativeRenderPass = false;
 
             return true;
         }
 
-        void CleanShadowmap()
+        public void CleanShadowmap()
         {
             if (m_MainLightShadowmapTexture)
             {
                 RenderTexture.ReleaseTemporary(m_MainLightShadowmapTexture);
                 m_MainLightShadowmapTexture = null;
             }
+            Clear();
         }
         void CreateShadowmap()
         {

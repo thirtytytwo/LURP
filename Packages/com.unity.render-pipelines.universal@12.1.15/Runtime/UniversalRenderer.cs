@@ -350,6 +350,7 @@ namespace UnityEngine.Rendering.Universal
         protected override void Dispose(bool disposing)
         {
             m_ForwardLights.Cleanup();
+            m_MainLightShadowCasterPass.CleanShadowmap();
             m_PostProcessPasses.Dispose();
 
             base.Dispose(disposing);
@@ -361,7 +362,7 @@ namespace UnityEngine.Rendering.Universal
             CoreUtils.Destroy(m_StencilDeferredMaterial);
             CoreUtils.Destroy(m_CameraMotionVecMaterial);
             CoreUtils.Destroy(m_ObjectMotionVecMaterial);
-
+            
             Blitter.Cleanup();
 
             LensFlareCommonSRP.Dispose();
