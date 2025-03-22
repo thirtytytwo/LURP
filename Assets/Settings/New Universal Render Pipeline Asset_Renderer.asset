@@ -1,20 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-2911356205690893871
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cb78c03f1287b844997a4e1573701f47, type: 3}
-  m_Name: LScreenSpaceShadow
-  m_EditorClassIdentifier: 
-  m_Active: 1
-  m_ScreenSpaceShadowMaterial: {fileID: 2100000, guid: abea1aa944d9aba44af77daaa697263d,
-    type: 2}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -25,16 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: de640fe3d0db1804a85f9fc8f5cadab6, type: 3}
-  m_Name: GraphicAsset_Renderer_Main
+  m_Name: New Universal Render Pipeline Asset_Renderer
   m_EditorClassIdentifier: 
   debugShaders:
     debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7,
       type: 3}
   m_RendererFeatures:
-  - {fileID: -2911356205690893871}
-  - {fileID: 7708481137249991171}
-  - {fileID: 2930015103110123843}
-  m_RendererFeatureMap: d1492ab9f4c898d703ba95c7c006fa6a4391685f3681a928
+  - {fileID: 586733920175969910}
+  m_RendererFeatureMap: 76d6c249647f2408
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -67,38 +50,15 @@ MonoBehaviour:
     passOperation: 2
     failOperation: 0
     zFailOperation: 0
-  m_ShadowTransparentReceive: 0
+  m_ShadowTransparentReceive: 1
   m_RenderingMode: 0
-  m_DepthPrimingMode: 2
-  m_CopyDepthMode: 2
+  m_DepthPrimingMode: 0
+  m_CopyDepthMode: 0
   m_AccurateGbufferNormals: 0
   m_ClusteredRendering: 0
   m_TileSize: 32
-  m_IntermediateTextureMode: 0
---- !u!114 &2930015103110123843
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f62c9c65cf3354c93be831c8bc075510, type: 3}
-  m_Name: ScreenSpaceAmbientOcclusion
-  m_EditorClassIdentifier: 
-  m_Active: 0
-  m_Shader: {fileID: 4800000, guid: 0849e84e3d62649e8882e9d6f056a017, type: 3}
-  m_Settings:
-    Downsample: 0
-    AfterOpaque: 0
-    Source: 1
-    NormalSamples: 1
-    Intensity: 3
-    DirectLightingStrength: 0.545
-    Radius: 0.035
-    SampleCount: 4
---- !u!114 &7708481137249991171
+  m_IntermediateTextureMode: 1
+--- !u!114 &586733920175969910
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -111,10 +71,5 @@ MonoBehaviour:
   m_Name: LAntiAliasing
   m_EditorClassIdentifier: 
   m_Active: 1
-  mSettings:
-    AAType: 0
-    FXAAQuality: 2
-    FXAAEdgeThresholdMin: 0.12
-    FXAAEdgeThreshold: 0.5
-    TAAQuality: 2
-  mAAShader: {fileID: 4800000, guid: d2ce59d8bc97c544a8ef704b42216e98, type: 3}
+  _AAType: 0
+  _AAMaterial: {fileID: 0}

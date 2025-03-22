@@ -82,8 +82,6 @@ Shader "Shader_yc/ShadowTest"
             Cull Back
 
             HLSLPROGRAM
-            #pragma exclude_renderers gles gles3 glcore
-            #pragma target 4.5
 
             #pragma vertex DepthOnlyVertex
             #pragma fragment DepthOnlyFragment
@@ -108,8 +106,6 @@ Shader "Shader_yc/ShadowTest"
             ColorMask 0
 
             HLSLPROGRAM
-            #pragma only_renderers gles gles3 glcore d3d11
-            #pragma target 2.0
 
             //--------------------------------------
             // GPU Instancing

@@ -1,4 +1,3 @@
-
 using UnityEngine.Experimental.Rendering;
 
 namespace UnityEngine.Rendering.Universal
@@ -21,7 +20,6 @@ namespace UnityEngine.Rendering.Universal
             }
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
-                //RT ???? ??????? ???
                 var desc = renderingData.cameraData.cameraTargetDescriptor;
                 desc.width >>= 1;
                 desc.height >>= 1;

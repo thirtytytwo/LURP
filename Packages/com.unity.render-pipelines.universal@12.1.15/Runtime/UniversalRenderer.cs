@@ -80,7 +80,11 @@ namespace UnityEngine.Rendering.Universal
         DepthNormalOnlyPass m_DepthNormalPrepass;
         CopyDepthPass m_PrimedDepthCopyPass;
         MotionVectorRenderPass m_MotionVectorPass;
+#if UNITY_EDITOR
+        MainLightShadowCasterPass m_MainLightShadowCasterPass;
+#else
         MainLightShadowCasterCachePass m_MainLightShadowCasterPass;
+#endif
         AdditionalLightsShadowCasterPass m_AdditionalLightsShadowCasterPass;
         GBufferPass m_GBufferPass;
         CopyDepthPass m_GBufferCopyDepthPass;
@@ -236,7 +240,11 @@ namespace UnityEngine.Rendering.Universal
 
             // Note: Since all custom render passes inject first and we have stable sort,
             // we inject the builtin passes in the before events.
+#if UNITY_EDITOR
+            m_MainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
+#else
             m_MainLightShadowCasterPass = new MainLightShadowCasterCachePass(RenderPassEvent.BeforeRenderingShadows);
+#endif
             m_AdditionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
 
 #if ENABLE_VR && ENABLE_XR_MODULE
@@ -350,7 +358,9 @@ namespace UnityEngine.Rendering.Universal
         protected override void Dispose(bool disposing)
         {
             m_ForwardLights.Cleanup();
-            m_MainLightShadowCasterPass.CleanShadowmap();
+            #if !UNITY_EDITOR
+                m_MainLightShadowCasterPass.CleanShadowmap();
+            #endif
             m_PostProcessPasses.Dispose();
 
             base.Dispose(disposing);
@@ -506,15 +516,7 @@ namespace UnityEngine.Rendering.Universal
 #else
             bool isGizmosEnabled = false;
 #endif
-            bool mainLightShadows = false;
-#if UNITY_EDITOR
-            if (!isSceneViewOrPreviewCamera)
-            {
-                mainLightShadows = m_MainLightShadowCasterPass.Setup(ref renderingData);
-            }
-#else
-            mainLightShadows = m_MainLightShadowCasterPass.Setup(ref renderingData);            
-#endif
+            bool mainLightShadows = m_MainLightShadowCasterPass.Setup(ref renderingData);            
             bool additionalLightShadows = m_AdditionalLightsShadowCasterPass.Setup(ref renderingData);
             bool transparentsNeedSettingsPass = m_TransparentSettingsPass.Setup(ref renderingData);
             bool forcePrepass = (m_CopyDepthMode == CopyDepthMode.ForcePrepass);
