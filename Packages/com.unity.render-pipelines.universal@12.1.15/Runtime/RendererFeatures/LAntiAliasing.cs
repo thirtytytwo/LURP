@@ -1,6 +1,4 @@
-
 using System;
-using UnityEngine.Serialization;
 
 namespace UnityEngine.Rendering.Universal
 {
@@ -19,10 +17,17 @@ namespace UnityEngine.Rendering.Universal
             MEDIUM = 1,
             HIGH = 2
         }
+
+        internal enum ComputeMode
+        {
+            FAST = 0,
+            ACCURATE = 1
+        }
         
         [SerializeField]internal Type AAType = Type.NONE;
         //FXAA
         [SerializeField]internal Quality FXAAQuality = Quality.LOW;
+        [SerializeField]internal ComputeMode FXAAComputeMode = ComputeMode.FAST;
         [SerializeField]internal float FXAAEdgeThresholdMin = 0.0625f;
         [SerializeField]internal float FXAAEdgeThreshold = 0.1875f;
         //TAA
@@ -39,6 +44,7 @@ namespace UnityEngine.Rendering.Universal
             private RenderTargetHandle mAntiAliasingTarget;
             private int mAAType;
             private int mQuality;
+            private int mComputeMode;
             
             //Shader Property
             private int mSourceSizeId;
@@ -62,10 +68,12 @@ namespace UnityEngine.Rendering.Universal
                 {
                     case (int)LAntiAliasingSettings.Type.FXAA:
                         mQuality = (int)settings.FXAAQuality;
+                        mComputeMode = (int)settings.FXAAComputeMode;
                         mAAParams = new Vector4(settings.FXAAEdgeThreshold, settings.FXAAEdgeThresholdMin,0.0f);
                         break;
                     case (int)LAntiAliasingSettings.Type.TAA:
                         mQuality = (int)settings.TAAQuality;
+                        mComputeMode = -1;
                         mAAParams = new Vector4(0.0f,0.0f,0.0f,0.0f);
                         break;
                 }
@@ -110,21 +118,6 @@ namespace UnityEngine.Rendering.Universal
 
             private void SetGlobalConstents(CommandBuffer cmd, int width, int height)
             {
-                // switch (mAAType)
-                // {
-                //     case (int)LAntiAliasingSettings.Type.FXAA:
-                //         mMaterial.EnableKeyword("FXAA");
-                //         mMaterial.DisableKeyword("TAA");
-                //         break;
-                //     case (int)LAntiAliasingSettings.Type.TAA:
-                //         mMaterial.EnableKeyword("TAA");
-                //         mMaterial.DisableKeyword("FXAA");
-                //         break;
-                //     case (int)LAntiAliasingSettings.Type.NONE:
-                //         mMaterial.DisableKeyword("TAA");
-                //         mMaterial.DisableKeyword("FXAA");
-                //         break;
-                // }
 
                 switch (mQuality)
                 {
@@ -144,6 +137,15 @@ namespace UnityEngine.Rendering.Universal
                         mMaterial.EnableKeyword("QUALITY_HIGH");
                         break;
                 }
+
+                if (mComputeMode == 0)
+                {
+                    mMaterial.EnableKeyword("COMPUTE_FAST");
+                }
+                else
+                {
+                    mMaterial.DisableKeyword("COMPUTE_FAST");
+                }
                 cmd.SetGlobalVector(mAAParamsId, mAAParams);
                 cmd.SetGlobalVector(mSourceSizeId, new Vector4(width, height,1.0f / width, 1.0f / height));
             }
@@ -160,6 +162,7 @@ namespace UnityEngine.Rendering.Universal
             mAAPass = new AntiAliasingPass();
             mAAPass.renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing;
             GetMaterial();
+            
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)

@@ -1,9 +1,5 @@
 Shader "Hidden/LURP/Feature/LAnitiAliasing"
 {
-    Properties
-    {
-        _MainTex ("Texture", 2D) = "white" {}
-    }
     SubShader
     {
         Tags { "RenderType"="Opaque" }
@@ -21,12 +17,9 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
             #pragma fragment AAFrag
 
             #pragma multi_compile QUALITY_LOW QUALITY_MEDIUM QUALITY_HIGH
+            #pragma multi_compile _ COMPUTE_FAST
             
             #include"LAntiAliasing.hlsl"
-
-            #define FXAA_AREA 0.1
-            #define FXAA_SEARCHSTEP 10
-            #define FXAA_MAX_STEP 8
 
             struct a2v
             {
@@ -61,15 +54,8 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
 
             half4 AAFrag(v2f input) : SV_Target
             {
-                half3 result = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, input.uv).rgb;
-#ifdef SHADER_API_DESKTOP
+                half3 result = half3(1.0, 1.0, 1.0);
                 result = FXAADesktopPixelShader(_CameraColorTexture, input.uv, SourceSize, AAParams);
-#endif
-                
-#ifdef SHADER_API_MOBILE
-                result = FXAAConsolePixelShader(_CameraColorTexture, input.uv, SourceSize)
-#endif
-                
                 return half4(result, 1);
             }
             ENDHLSL

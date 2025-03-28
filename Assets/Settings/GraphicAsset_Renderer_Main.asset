@@ -115,6 +115,6 @@ MonoBehaviour:
     AAType: 0
     FXAAQuality: 2
     FXAAEdgeThresholdMin: 0.12
-    FXAAEdgeThreshold: 0.5
+    FXAAEdgeThreshold: 0.4
     TAAQuality: 2
   mAAShader: {fileID: 4800000, guid: d2ce59d8bc97c544a8ef704b42216e98, type: 3}
