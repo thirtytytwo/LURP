@@ -34,9 +34,9 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
             
 
             TEXTURE2D(_CameraColorTexture);
+            TEXTURE2D(_MotionVectorTexture);
             float4 SourceSize;
             float4 AAParams;
-            
             
 
             v2f AAVert(a2v i)
@@ -56,6 +56,7 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
             {
                 half3 result = half3(1.0, 1.0, 1.0);
                 result = FXAADesktopPixelShader(_CameraColorTexture, input.uv, SourceSize, AAParams);
+                //result = SAMPLE_TEXTURE2D(_MotionVectorTexture, sampler_LinearClamp, input.uv);
                 return half4(result, 1);
             }
             ENDHLSL

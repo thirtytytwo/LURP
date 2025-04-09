@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb78c03f1287b844997a4e1573701f47, type: 3}
   m_Name: LScreenSpaceShadow
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   m_ScreenSpaceShadowMaterial: {fileID: 2100000, guid: abea1aa944d9aba44af77daaa697263d,
     type: 2}
 --- !u!114 &11400000
@@ -33,8 +33,7 @@ MonoBehaviour:
   m_RendererFeatures:
   - {fileID: -2911356205690893871}
   - {fileID: 7708481137249991171}
-  - {fileID: 2930015103110123843}
-  m_RendererFeatureMap: d1492ab9f4c898d703ba95c7c006fa6a4391685f3681a928
+  m_RendererFeatureMap: d1492ab9f4c898d703ba95c7c006fa6a
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -75,29 +74,6 @@ MonoBehaviour:
   m_ClusteredRendering: 0
   m_TileSize: 32
   m_IntermediateTextureMode: 0
---- !u!114 &2930015103110123843
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f62c9c65cf3354c93be831c8bc075510, type: 3}
-  m_Name: ScreenSpaceAmbientOcclusion
-  m_EditorClassIdentifier: 
-  m_Active: 0
-  m_Shader: {fileID: 4800000, guid: 0849e84e3d62649e8882e9d6f056a017, type: 3}
-  m_Settings:
-    Downsample: 0
-    AfterOpaque: 0
-    Source: 1
-    NormalSamples: 1
-    Intensity: 3
-    DirectLightingStrength: 0.545
-    Radius: 0.035
-    SampleCount: 4
 --- !u!114 &7708481137249991171
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -112,9 +88,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 1
   mSettings:
-    AAType: 0
+    AAType: 1
     FXAAQuality: 2
-    FXAAEdgeThresholdMin: 0.12
-    FXAAEdgeThreshold: 0.4
+    FXAAComputeMode: 0
+    FXAAEdgeThresholdMin: 0.063
+    FXAAEdgeThreshold: 0.369
     TAAQuality: 2
-  mAAShader: {fileID: 4800000, guid: d2ce59d8bc97c544a8ef704b42216e98, type: 3}

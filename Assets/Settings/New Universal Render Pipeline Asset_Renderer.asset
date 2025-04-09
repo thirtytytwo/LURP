@@ -71,5 +71,10 @@ MonoBehaviour:
   m_Name: LAntiAliasing
   m_EditorClassIdentifier: 
   m_Active: 1
-  _AAType: 0
-  _AAMaterial: {fileID: 0}
+  mSettings:
+    AAType: 0
+    FXAAQuality: 0
+    FXAAComputeMode: 0
+    FXAAEdgeThresholdMin: 0.0625
+    FXAAEdgeThreshold: 0.1875
+    TAAQuality: 0
