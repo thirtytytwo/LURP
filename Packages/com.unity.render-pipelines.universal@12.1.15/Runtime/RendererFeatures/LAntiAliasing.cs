@@ -244,17 +244,20 @@ namespace UnityEngine.Rendering.Universal
         internal class MotionVectorPass : ScriptableRenderPass
         {
             #region Fields
-            const string kPreviousViewProjectionMatrix = "_PrevViewProjMatrix";
             const string kMotionVectorTexture = "_MotionVectorTexture";
             const string kObjectIDTexture = "_ObjectIDTexture";
 
             static readonly string[] s_ShaderTags = new string[] { "LMotionVectors" };
-            //Custom
-            private RenderTargetIdentifier[] m_Identifiers = new RenderTargetIdentifier[2];
+            
+            private RenderTargetIdentifier[] m_ColorIdentifiers = new RenderTargetIdentifier[2];
             private RenderTargetHandle[] m_Handles = new RenderTargetHandle[2];
             private RenderStateBlock m_RenderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             private RenderTargetIdentifier m_DepthIdentifier;
             private Material mMaterial;
+
+            private int mScreenSizeId;
+            private int mPrevViewProjMatrixId;
+            
             
             PreviousFrameData m_MotionData;
             ProfilingSampler m_ProfilingSampler = ProfilingSampler.Get(URPProfileId.MotionVectors);
@@ -268,14 +271,16 @@ namespace UnityEngine.Rendering.Universal
                 //Init RT Handle
                 m_Handles[0].Init(kMotionVectorTexture);
                 m_Handles[1].Init(kObjectIDTexture);
-                m_Identifiers[0] = m_Handles[0].Identifier();
-                m_Identifiers[1] = m_Handles[1].Identifier();
+                m_ColorIdentifiers[0] = m_Handles[0].Identifier();
+                m_ColorIdentifiers[1] = m_Handles[1].Identifier();
+
+                mScreenSizeId = Shader.PropertyToID("ScreenSize");
+                mPrevViewProjMatrixId = Shader.PropertyToID("PrevViewProjMatrix");
             }
 
             #endregion
 
             #region State
-            //bool UseDepthPriming 为debug参数，后续会删除;
             internal void Setup(Material material)
             {
                 mMaterial = material;
@@ -312,7 +317,7 @@ namespace UnityEngine.Rendering.Universal
 #if UNITY_STANDALONE || UNITY_EDITOR
                 desc0.graphicsFormat = GraphicsFormat.R16G16_SFloat;
 #elif UNITY_ANDROID || UNITY_IOS
-            desc0.graphicsFormat = GraphicsFormat.R8G8_UNorm;
+                desc0.graphicsFormat = GraphicsFormat.R8G8_UNorm;
 #endif
                 desc1.graphicsFormat = GraphicsFormat.R8_UInt;
                 desc0.depthBufferBits = 0;
@@ -322,7 +327,7 @@ namespace UnityEngine.Rendering.Universal
             
                 cmd.GetTemporaryRT(m_Handles[0].id, desc0, FilterMode.Point);
                 cmd.GetTemporaryRT(m_Handles[1].id, desc1, FilterMode.Point);
-                ConfigureTarget(m_Identifiers, m_DepthIdentifier);
+                ConfigureTarget(m_ColorIdentifiers, m_DepthIdentifier);
                 ConfigureClear(ClearFlag.None, Color.black);
             }
 
@@ -352,8 +357,9 @@ namespace UnityEngine.Rendering.Universal
                 using (new ProfilingScope(cmd, m_ProfilingSampler))
                 {
                     ExecuteCommand(context, cmd);
-                    Shader.SetGlobalMatrix(kPreviousViewProjectionMatrix, m_MotionData.previousViewProjectionMatrix);
-
+                    Shader.SetGlobalMatrix(mPrevViewProjMatrixId, m_MotionData.previousViewProjectionMatrix);
+                    cmd.SetGlobalVector(mScreenSizeId, new Vector4(camera.pixelWidth, camera.pixelHeight, 1.0f / camera.pixelWidth, 1.0f / camera.pixelHeight));
+                    
                     // These flags are still required in SRP or the engine won't compute previous model matrices...
                     // If the flag hasn't been set yet on this camera, motion vectors will skip a frame.
                     camera.depthTextureMode |= DepthTextureMode.MotionVectors | DepthTextureMode.Depth;
