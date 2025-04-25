@@ -52,9 +52,16 @@ namespace UnityEngine.Rendering.Universal
         {
             mFXAAPass = new FXAAPass();
             mFXAAPass.renderPassEvent = RenderPassEvent.AfterRenderingPostProcessing;
+            
+            mTAAPass = new TAAPass();
+            mTAAPass.renderPassEvent = RenderPassEvent.AfterRenderingTransparents+1;
+            
             mMotionVectorPass = new MotionVectorPass();
+            mMotionVectorPass.renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
+            
             GetMaterial();
             GetMotionVectorMaterial();
+            ShaderConstents.FrameCount = 0;
 
         }
 
@@ -71,8 +78,7 @@ namespace UnityEngine.Rendering.Universal
                 mFXAAPass.Setup(mSettings, mAAMaterial);
                 renderer.EnqueuePass(mFXAAPass);
             }
-
-            if (mSettings.AAType == LAntiAliasingSettings.Type.TAA)
+            else if (mSettings.AAType == LAntiAliasingSettings.Type.TAA)
             {
                 if (!GetMotionVectorMaterial())
                 {
@@ -81,6 +87,8 @@ namespace UnityEngine.Rendering.Universal
                 }
                 mMotionVectorPass.Setup(mMotionVectorMaterial);
                 renderer.EnqueuePass(mMotionVectorPass);
+                mTAAPass.Setup(mAAMaterial);
+                renderer.EnqueuePass(mTAAPass);
             }
         }
 
@@ -88,8 +96,10 @@ namespace UnityEngine.Rendering.Universal
         {
             CoreUtils.Destroy(mAAMaterial);
             CoreUtils.Destroy(mMotionVectorMaterial);
-            
+            mTAAPass.CleanLastFrame();
+            mMotionVectorPass.CleanupObjectIDTextures();
         }
+        
 
         private bool GetMaterial()
         {
@@ -136,40 +146,18 @@ namespace UnityEngine.Rendering.Universal
             private ProfilingSampler mAntiAliasingSampler = new ProfilingSampler("FXAA Pass");
             
             private Material mMaterial;
-            private RenderTargetHandle mTarget;
             private int mQuality;
             private int mComputeMode;
             
-            //Shader Property
-            private int mSourceSizeId;
-            private int mAAParamsId;
-            
             //vector
-            private Vector4 mAAParams;
-            public FXAAPass()
-            {
-                mTarget.Init("FXAATexture");
-                
-                mSourceSizeId = Shader.PropertyToID("SourceSize");
-                mAAParamsId = Shader.PropertyToID("FXAAParams");
-            }
-
+            private Vector4 mFXAAParams;
+            
             public void Setup(LAntiAliasingSettings settings, Material material)
             {
                 mMaterial = material;
-            }
-
-            public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
-            {
-                var desc = renderingData.cameraData.cameraTargetDescriptor;
-                cmd.GetTemporaryRT(mTarget.id, desc, FilterMode.Bilinear);
-            }
-
-            public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
-            {
-                ConfigureTarget(mTarget.Identifier());
-                ConfigureInput(ScriptableRenderPassInput.Motion);
-                ConfigureClear(ClearFlag.None, Color.clear);
+                mQuality = (int)settings.FXAAQuality;
+                mComputeMode = (int)settings.FXAAComputeMode;
+                mFXAAParams = new Vector4(settings.FXAAEdgeThreshold, settings.FXAAEdgeThresholdMin, 0, 0);
             }
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -183,18 +171,12 @@ namespace UnityEngine.Rendering.Universal
                 using (new ProfilingScope(cmd, mAntiAliasingSampler))
                 {
                     SetGlobalConstents(cmd, width, height);
+                    cmd.SetRenderTarget(renderer.GetCameraColorFrontBuffer(cmd));
                     cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, mMaterial,0,0);
-                    var destination = renderer.GetCameraColorFrontBuffer(cmd);
-                    cmd.Blit(mTarget.Identifier(), destination);
                     renderer.SwapColorBuffer(cmd);
                 }
                 context.ExecuteCommandBuffer(cmd);
                 CommandBufferPool.Release(cmd);
-            }
-
-            public override void OnCameraCleanup(CommandBuffer cmd)
-            {
-                cmd.ReleaseTemporaryRT(mTarget.id);
             }
 
             private void SetGlobalConstents(CommandBuffer cmd, int width, int height)
@@ -219,65 +201,103 @@ namespace UnityEngine.Rendering.Universal
                         break;
                 }
 
-                if (mComputeMode == 0)
-                {
-                    mMaterial.EnableKeyword("COMPUTE_FAST");
-                }
-                else
-                {
-                    mMaterial.DisableKeyword("COMPUTE_FAST");
-                }
-                cmd.SetGlobalVector(mAAParamsId, mAAParams);
-                cmd.SetGlobalVector(mSourceSizeId, new Vector4(width, height,1.0f / width, 1.0f / height));
+                if (mComputeMode == 0)mMaterial.EnableKeyword("COMPUTE_FAST");
+                else mMaterial.DisableKeyword("COMPUTE_FAST");
+                
+                cmd.SetGlobalVector(ShaderConstents.FXAAParamsId, mFXAAParams);
+                cmd.SetGlobalVector(ShaderConstents.CameraColorSizeId, new Vector4(width, height,1.0f / width, 1.0f / height));
             }
             
         }
 
         internal class TAAPass : ScriptableRenderPass
         {
+            private Material mTAAMaterial;
+            
+            private ProfilingSampler mAntiAliasingSampler = new ProfilingSampler("TAAPass");
+            
+            
+            //上一帧RT
+            private RenderTexture mLastFrame;
+            public void Setup(Material mat)
+            {
+                mTAAMaterial = mat;
+            }
+
+            public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
+            {
+                var desc = renderingData.cameraData.cameraTargetDescriptor;
+                if (mLastFrame == null) mLastFrame = RenderTexture.GetTemporary(desc);
+            }
+
+
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
             {
-                throw new NotImplementedException();
+                var renderer = renderingData.cameraData.renderer;
+                var cameraData = renderingData.cameraData;
+                //get halton sequence
+                //we take x on base 2 and y on base 3
+                // 8 frames for a loop
+                int index = ShaderConstents.FrameCount % 7 + 1;
+                float x = HaltonSequence.Get(index, 2);
+                float y = HaltonSequence.Get(index, 3);
+
+                x = (x - 0.5f) / cameraData.camera.pixelWidth;
+                y = (y - 0.5f) / cameraData.camera.pixelHeight;
+                
+                var cmd = CommandBufferPool.Get();
+                using (new ProfilingScope(cmd, mAntiAliasingSampler))
+                {
+                    var source = renderer.GetCameraColorFrontBuffer(cmd);
+                    cmd.SetRenderTarget(source);
+                    int flag = 0;
+                    if (ShaderConstents.FrameCount > 0)
+                    {
+                        cmd.SetGlobalTexture(ShaderConstents.LastFrameId, mLastFrame);
+                        flag = 1;
+                    }
+                    cmd.SetGlobalVector(ShaderConstents.JitterId, new Vector4(x, y, flag, 0));
+                    
+                    cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, mTAAMaterial,0,1);
+                    cmd.Blit(source, mLastFrame);
+                    
+                    renderer.SwapColorBuffer(cmd);
+                }
+                context.ExecuteCommandBuffer(cmd);
+                CommandBufferPool.Release(cmd);
+                
+            }
+
+            public override void OnCameraCleanup(CommandBuffer cmd)
+            {
+                ShaderConstents.FrameCount++;
+            }
+
+            //清理持久化图片
+            public void CleanLastFrame()
+            {
+                if (mLastFrame != null) RenderTexture.ReleaseTemporary(mLastFrame);
             }
         }
 
         internal class MotionVectorPass : ScriptableRenderPass
         {
             #region Fields
-            const string kMotionVectorTexture = "_MotionVectorTexture";
-            const string kObjectIDTexture = "_ObjectIDTexture";
 
             static readonly string[] s_ShaderTags = new string[] { "LMotionVectors" };
             
-            private RenderTargetIdentifier[] m_ColorIdentifiers = new RenderTargetIdentifier[2];
-            private RenderTargetHandle[] m_Handles = new RenderTargetHandle[2];
+            //ID图使用持久化 MotionVector为每帧生成
+            private RenderTexture[] mObjectIDTextures = new RenderTexture[2];
+            
             private RenderStateBlock m_RenderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             private RenderTargetIdentifier m_DepthIdentifier;
             private Material mMaterial;
 
-            private int mScreenSizeId;
-            private int mPrevViewProjMatrixId;
-            
+            private int mWidth = 0;
+            private int mHeight = 0;
             
             PreviousFrameData m_MotionData;
             ProfilingSampler m_ProfilingSampler = ProfilingSampler.Get(URPProfileId.MotionVectors);
-            #endregion
-
-            #region Constructors
-            internal MotionVectorPass()
-            {
-                renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
-                
-                //Init RT Handle
-                m_Handles[0].Init(kMotionVectorTexture);
-                m_Handles[1].Init(kObjectIDTexture);
-                m_ColorIdentifiers[0] = m_Handles[0].Identifier();
-                m_ColorIdentifiers[1] = m_Handles[1].Identifier();
-
-                mScreenSizeId = Shader.PropertyToID("ScreenSize");
-                mPrevViewProjMatrixId = Shader.PropertyToID("PrevViewProjMatrix");
-            }
-
             #endregion
 
             #region State
@@ -299,7 +319,7 @@ namespace UnityEngine.Rendering.Universal
                 //Setup DepthState if we write depth to depthbuffer already
                 if (cameraData.renderer.useDepthPriming)
                 {
-                    m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.Equal);
+                    m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.LessEqual);
                     m_RenderStateBlock.mask |= RenderStateMask.Depth;
                 }
                 else
@@ -312,23 +332,29 @@ namespace UnityEngine.Rendering.Universal
             public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
             {
                 //Init RT
+                //decs0 -- motionvector decs1 -- objectID
                 var desc0 = cameraTextureDescriptor;
                 var desc1 = cameraTextureDescriptor;
-#if UNITY_STANDALONE || UNITY_EDITOR
-                desc0.graphicsFormat = GraphicsFormat.R16G16_SFloat;
-#elif UNITY_ANDROID || UNITY_IOS
+#if UNITY_ANDROID || UNITY_IOS
+                desc0.graphicsFormat = GraphicsFormat.R8G8_UNorm;
+#else
                 desc0.graphicsFormat = GraphicsFormat.R8G8_UNorm;
 #endif
-                desc1.graphicsFormat = GraphicsFormat.R8_UInt;
+                desc1.graphicsFormat = GraphicsFormat.R8_UNorm;
                 desc0.depthBufferBits = 0;
                 desc1.depthBufferBits = 0;
                 desc0.depthStencilFormat = GraphicsFormat.None;
                 desc1.depthStencilFormat = GraphicsFormat.None;
             
-                cmd.GetTemporaryRT(m_Handles[0].id, desc0, FilterMode.Point);
-                cmd.GetTemporaryRT(m_Handles[1].id, desc1, FilterMode.Point);
-                ConfigureTarget(m_ColorIdentifiers, m_DepthIdentifier);
-                ConfigureClear(ClearFlag.None, Color.black);
+                GenerateObjectIDTextures(desc1);
+                cmd.GetTemporaryRT(ShaderConstents.MotionVectorTextureId, desc0, FilterMode.Point);
+                
+                var motionVectorIdentifier = new RenderTargetIdentifier(ShaderConstents.MotionVectorTextureId);
+                var ObjectIDIdentifier = mObjectIDTextures[ShaderConstents.FrameCount % 2];
+                
+                var identifiers = new RenderTargetIdentifier[] { motionVectorIdentifier, ObjectIDIdentifier };
+                ConfigureTarget(identifiers, m_DepthIdentifier);
+                ConfigureClear(ClearFlag.None, Color.clear);
             }
 
             #endregion
@@ -357,8 +383,8 @@ namespace UnityEngine.Rendering.Universal
                 using (new ProfilingScope(cmd, m_ProfilingSampler))
                 {
                     ExecuteCommand(context, cmd);
-                    Shader.SetGlobalMatrix(mPrevViewProjMatrixId, m_MotionData.previousViewProjectionMatrix);
-                    cmd.SetGlobalVector(mScreenSizeId, new Vector4(camera.pixelWidth, camera.pixelHeight, 1.0f / camera.pixelWidth, 1.0f / camera.pixelHeight));
+                    Shader.SetGlobalMatrix(ShaderConstents.PrevViewProjMatrixId, m_MotionData.previousViewProjectionMatrix);
+                    cmd.SetGlobalVector(ShaderConstents.CameraColorSizeId, new Vector4(camera.pixelWidth, camera.pixelHeight, 1.0f / camera.pixelWidth, 1.0f / camera.pixelHeight));
                     
                     // These flags are still required in SRP or the engine won't compute previous model matrices...
                     // If the flag hasn't been set yet on this camera, motion vectors will skip a frame.
@@ -367,6 +393,7 @@ namespace UnityEngine.Rendering.Universal
                     // TODO: add option to only draw either one?
                     DrawCameraMotionVectors(context, cmd, camera);
                     DrawObjectMotionVectors(context, ref renderingData, camera);
+                    
                 }
                 ExecuteCommand(context, cmd);
                 CommandBufferPool.Release(cmd);
@@ -412,8 +439,6 @@ namespace UnityEngine.Rendering.Universal
 
             void DrawCameraMotionVectors(ScriptableRenderContext context, CommandBuffer cmd, Camera camera)
             {
-                // Draw fullscreen quad
-                // cmd.DrawProcedural(Matrix4x4.identity, mMaterial, 1, MeshTopology.Triangles, 3, 1);
                 cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, mMaterial,0,1);
                 ExecuteCommand(context, cmd);
             }
@@ -435,15 +460,40 @@ namespace UnityEngine.Rendering.Universal
 
             #endregion
 
-            #region Cleanup
+            #region RTLifeCycle
 
             public override void FrameCleanup(CommandBuffer cmd)
             {
                 if (cmd == null)
                     throw new ArgumentNullException("cmd");
                 
-                cmd.ReleaseTemporaryRT(m_Handles[0].id);
-                cmd.ReleaseTemporaryRT(m_Handles[1].id);
+                cmd.ReleaseTemporaryRT(ShaderConstents.MotionVectorTextureId);
+            }
+
+            private void GenerateObjectIDTextures(RenderTextureDescriptor desc)
+            {
+                if(mObjectIDTextures[0] == null) mObjectIDTextures[0] = RenderTexture.GetTemporary(desc);
+                if(mObjectIDTextures[1] == null) mObjectIDTextures[1] = RenderTexture.GetTemporary(desc);
+
+                if (mWidth != desc.width || mHeight != desc.height)
+                {
+                    mWidth = desc.width;
+                    mHeight = desc.height;
+                    
+                    RenderTexture.ReleaseTemporary(mObjectIDTextures[0]);
+                    RenderTexture.ReleaseTemporary(mObjectIDTextures[1]);
+
+                    mObjectIDTextures[0] = RenderTexture.GetTemporary(desc);
+                    mObjectIDTextures[1] = RenderTexture.GetTemporary(desc);                    
+                }
+            }
+
+            public void CleanupObjectIDTextures()
+            {
+                RenderTexture.ReleaseTemporary(mObjectIDTextures[0]);
+                RenderTexture.ReleaseTemporary(mObjectIDTextures[1]);
+                mObjectIDTextures[0] = null;
+                mObjectIDTextures[1] = null;
             }
 
             #endregion
@@ -456,6 +506,24 @@ namespace UnityEngine.Rendering.Universal
             }
 
             #endregion
+        }
+        
+        internal static class ShaderConstents
+        {
+            //RT
+            public static readonly int curObjectIDTextureId = Shader.PropertyToID("_LCurrentObjectIDTexture");
+            public static readonly int lastObjectIDTextureId = Shader.PropertyToID("_LLastObjectIDTexture");
+            public static readonly int LastFrameId = Shader.PropertyToID("_LLastFrame");
+            public static readonly int MotionVectorTextureId = Shader.PropertyToID("_LMotionVectorTexture");
+            
+            //Param
+            public static readonly int JitterId = Shader.PropertyToID("_Jitter");
+            public static readonly int CameraColorSizeId = Shader.PropertyToID("_CameraColorSize");
+            public static readonly int CameraDepthSizeId = Shader.PropertyToID("_CameraDepthSize");
+            public static readonly int FXAAParamsId = Shader.PropertyToID("_FXAAParams");
+            public static readonly int PrevViewProjMatrixId = Shader.PropertyToID("_PrevViewProjMatrix");
+
+            public static int FrameCount;
         }
     }
 }

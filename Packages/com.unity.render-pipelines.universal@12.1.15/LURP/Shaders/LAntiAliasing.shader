@@ -11,10 +11,11 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
         // FXAA Pass
         Pass
         {
+            Name "FXAA"
             HLSLPROGRAM
             #pragma target 4.5
-            #pragma vertex AAVert
-            #pragma fragment AAFrag
+            #pragma vertex FXAAVert
+            #pragma fragment FXAAFrag
 
             #pragma multi_compile QUALITY_LOW QUALITY_MEDIUM QUALITY_HIGH
             #pragma multi_compile _ COMPUTE_FAST
@@ -34,12 +35,11 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
             
 
             TEXTURE2D(_CameraColorTexture);
-            TEXTURE2D(_MotionVectorTexture);
-            float4 SourceSize;
-            float4 AAParams;
+            float4 _CameraColorSize;
+            float4 _FXAAParams;
             
 
-            v2f AAVert(a2v i)
+            v2f FXAAVert(a2v i)
             {
                 v2f o;
                 o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
@@ -52,12 +52,70 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
                 return o;
             }
 
-            half4 AAFrag(v2f input) : SV_Target
+            half4 FXAAFrag(v2f input) : SV_Target
             {
                 half3 result = half3(1.0, 1.0, 1.0);
-                result = FXAADesktopPixelShader(_CameraColorTexture, input.uv, SourceSize, AAParams);
-                //result = SAMPLE_TEXTURE2D(_MotionVectorTexture, sampler_LinearClamp, input.uv);
+                result = FXAADesktopPixelShader(_CameraColorTexture, input.uv, _CameraColorSize, _FXAAParams);
                 return half4(result, 1);
+            }
+            ENDHLSL
+        }
+
+        // TAA
+        Pass
+        {
+            Name "TAA"
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex TAAVert
+            #pragma fragment TAAFrag
+
+            #include "LAntiAliasing.hlsl"
+
+            struct a2v
+            {
+                float3 positionOS : POSITION;
+            };
+
+            struct v2f
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            float4 _Jitter;
+            TEXTURE2D(_CameraColorTexture);
+            TEXTURE2D(_LMotionVectorTexture);
+            TEXTURE2D(_LLastFrame);
+
+            v2f TAAVert(a2v i)
+            {
+                v2f o;
+                o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
+                float u = i.positionOS.x * 0.5f + 0.5f;
+                float v = i.positionOS.y * 0.5f + 0.5;
+                #if UNITY_UV_STARTS_AT_TOP
+                v = 1.0f - v;
+                #endif
+                o.uv = float2(u,v);
+                return o;
+            }
+
+            half4 TAAFrag(v2f input) : SV_Target
+            {
+                //历史帧没有数据，直接返回当前未加Jitter的颜色
+                if (_Jitter.z == 0)
+                {
+                    half4 curFrameNoJitter = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, input.uv);
+                    return curFrameNoJitter;
+                }
+                float2 jitterUV = input.uv + _Jitter.xy;
+                half4 curFrameJitter = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, jitterUV);
+                float2 delta = SAMPLE_TEXTURE2D(_LMotionVectorTexture, sampler_PointClamp, input.uv).xy;
+                float2 motion = MotionVectorDecode(delta);
+                float2 lastFrameUV = input.uv + motion;
+                half4 lastFrame = SAMPLE_TEXTURE2D(_LLastFrame, sampler_LinearClamp, lastFrameUV);
+                return lerp(lastFrame, curFrameJitter, 0.1);
             }
             ENDHLSL
         }

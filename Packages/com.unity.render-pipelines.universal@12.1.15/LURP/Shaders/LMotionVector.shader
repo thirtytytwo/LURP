@@ -14,16 +14,20 @@ Shader "Hidden/LURP/Feature/LMotionVector"
             #pragma vertex Vert
             #pragma fragment Frag
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "LAntiAliasing.hlsl"
+            
 
             struct a2v
             {
                 float4 positionOS : POSITION;
+                float3 positionOld : TEXCOORD4;
                 
             };
             struct v2f
             {
                 float4 positionCS : SV_POSITION;
+                float4 positionVP : TEXCOORD0;
+                float4 prevPositionVP : TEXCOORD1;
             };
 
             struct FragOutput
@@ -36,13 +40,44 @@ Shader "Hidden/LURP/Feature/LMotionVector"
             {
                 v2f output;
                 output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                #ifdef UNITY_REVERSED_Z
+                output.positionCS.z -= unity_MotionVectorsParams.z * output.positionCS.w;
+                #else
+                output.positionCS.z += unity_MotionVectorsParams.z * output.positionCS.w;
+                #endif
+
+                output.positionVP = mul(UNITY_MATRIX_VP, mul(UNITY_MATRIX_M, input.positionOS));
+
+                const float4 prevPos = (unity_MotionVectorsParams.x == 1) ? float4(input.positionOld, 1.0) : input.positionOS;
+                output.prevPositionVP = mul(_PrevViewProjMatrix, mul(unity_MatrixPreviousM, prevPos));
                 return output;
             }
             FragOutput Frag(v2f input)
             {
                 FragOutput output;
-                output.vectorOutput = float4(1, 1, 1, 1);
-                output.idOutput     = float4(1, 0, 0, 1);
+                bool forceNoMotion = unity_MotionVectorsParams.y == 0;
+                if (forceNoMotion)
+                {
+                    output.vectorOutput = float4(0.5, 0.5, 0, 0);
+                    output.idOutput = float4(0, 0, 0, 0);
+                    return output;
+                }
+
+                float2 curPos = input.positionVP.xy / input.positionVP.w;
+                float2 prevPos = input.prevPositionVP.xy / input.prevPositionVP.w;
+                float2 delta = prevPos - curPos;
+                //相当于把prevPos和curPos都映射到[0,1]的范围内
+                delta *= 0.5f;
+
+                float2 velocity = MotionVectorEncode(delta);
+                velocity = velocity * 0.5f + 0.5f;
+
+                #if UNITY_UV_STARTS_AT_TOP
+                velocity.y = 1.0 - velocity.y;
+                #endif
+
+                output.vectorOutput = float4(velocity, 0, 1);
+                output.idOutput = float4(0.2, 0, 0, 1);
                 return output;
             }
             ENDHLSL
@@ -59,14 +94,9 @@ Shader "Hidden/LURP/Feature/LMotionVector"
             
             #pragma vertex Vert
             #pragma fragment Frag
-            
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            TEXTURE2D(_CameraDepthTexture);
-            SAMPLER(sampler_CameraDepthTexture);
+            #include "LAntiAliasing.hlsl"
             
-            float4x4 PrevViewProjMatrix;
-            float4   ScreenSize;
 
             struct a2v
             {
@@ -83,6 +113,7 @@ Shader "Hidden/LURP/Feature/LMotionVector"
                 float4 vectorOutput : SV_Target0;
                 float4 idOutput     : SV_Target1;
             };
+            
 
             v2f Vert(a2v input)
             {
@@ -96,23 +127,32 @@ Shader "Hidden/LURP/Feature/LMotionVector"
             }
             FragmentOutput Frag(v2f input)
             {
-                float depth = SAMPLE_TEXTURE2D(_CameraDepthTexture, sampler_CameraDepthTexture, input.uv).r;
-                float3 positionWS = mul(UNITY_MATRIX_I_VP, float4(input.positionCS.xy * ScreenSize.zw, depth, 1.0));
+                #if UNITY_REVERSED_Z
+                float deviceDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, input.uv.xy);
+            #else
+                float deviceDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, input.uv.xy);
+                deviceDepth = deviceDepth * 2.0 - 1.0;
+            #endif
+                float3 positionWS = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, UNITY_MATRIX_I_VP);
 
-                float4 previousPositionVP = mul(PrevViewProjMatrix, float4(positionWS, 1.0));
+                float4 previousPositionVP = mul(_PrevViewProjMatrix, float4(positionWS, 1.0));
                 float4 positionVP = mul(UNITY_MATRIX_VP, float4(positionWS, 1.0));
 
-                float2 previousPositionNDC = previousPositionVP.xy / previousPositionVP.w;
-                float2 positionNDC = positionVP.xy / positionVP.w;
+                float2 prevPos = previousPositionVP.xy / previousPositionVP.w;
+                float2 curPos = positionVP.xy / positionVP.w;
+                float2 delta = prevPos - curPos;
+                //相当于把prevPos和curPos都映射到[0,1]的范围内
+                delta *= 0.5f;
+                
+                float2 velocity = MotionVectorEncode(delta);
+                velocity = velocity * 0.5f + 0.5f;
 
-                float2 delta = previousPositionNDC - positionNDC;
                 #if UNITY_UV_STARTS_AT_TOP
-                delta.y = -delta.y;
+                velocity.y = 1.0 - velocity.y;
                 #endif
-
-                float2 motion = float2(0.5, 0.5) + delta * 0.5;
+                
                 FragmentOutput output;
-                output.vectorOutput = float4(motion, 0, 1);
+                output.vectorOutput = float4(velocity, 0, 1);
                 output.idOutput     = float4(0, 0, 0, 1);
                 return output;
             }

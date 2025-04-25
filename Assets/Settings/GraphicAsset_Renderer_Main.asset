@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb78c03f1287b844997a4e1573701f47, type: 3}
   m_Name: LScreenSpaceShadow
   m_EditorClassIdentifier: 
-  m_Active: 0
+  m_Active: 1
   m_ScreenSpaceShadowMaterial: {fileID: 2100000, guid: abea1aa944d9aba44af77daaa697263d,
     type: 2}
 --- !u!114 &11400000
@@ -32,8 +32,8 @@ MonoBehaviour:
       type: 3}
   m_RendererFeatures:
   - {fileID: -2911356205690893871}
-  - {fileID: 7708481137249991171}
-  m_RendererFeatureMap: d1492ab9f4c898d703ba95c7c006fa6a
+  - {fileID: 1696152651223619336}
+  m_RendererFeatureMap: d1492ab9f4c898d708570585d9f18917
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -74,7 +74,7 @@ MonoBehaviour:
   m_ClusteredRendering: 0
   m_TileSize: 32
   m_IntermediateTextureMode: 0
---- !u!114 &7708481137249991171
+--- !u!114 &1696152651223619336
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -91,6 +91,6 @@ MonoBehaviour:
     AAType: 1
     FXAAQuality: 2
     FXAAComputeMode: 0
-    FXAAEdgeThresholdMin: 0.063
-    FXAAEdgeThreshold: 0.369
-    TAAQuality: 2
+    FXAAEdgeThresholdMin: 0.104
+    FXAAEdgeThreshold: 0.195
+    TAAQuality: 0

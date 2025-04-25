@@ -7,6 +7,10 @@
 /*-------------------------------------------------------------------------------------------*/
 #if SHADER_API_DESKTOP
 /*-------------------------------------------------------------------------------------------*/
+#define FXAA_SEARCH_STEPS 0
+#define FXAA_SEARCH_S0 0
+#define FXAA_SEARCH_S1 0
+#define FXAA_SEARCH_S2 0
 #ifdef QUALITY_LOW
 #define FXAA_SEARCH_STEPS 3
 #define FXAA_SEARCH_S0 1.0
@@ -68,6 +72,10 @@
 /*-------------------------------------------------------------------------------------------*/
 #endif
 /*-------------------------------------------------------------------------------------------*/
+
+TEXTURE2D(_CameraDepthTexture);
+float4 _CameraDepthTexture_ST;
+
 float GetLuminance(TEXTURE2D(inputTexture), float2 pos)
 {
     #if COMPUTE_FAST
@@ -75,6 +83,47 @@ float GetLuminance(TEXTURE2D(inputTexture), float2 pos)
     #else
     return Luminance(SAMPLE_TEXTURE2D(inputTexture, sampler_LinearClamp, pos));
     #endif
+}
+float2 MotionVectorEncode(float2 motion)
+{
+    float2 motionSign = sign(motion);
+    //类似Gamma矫正，让小数据占有更多的范围
+    //因为速度很少有从屏幕的一边移动屏幕一半的距离，所以大部分速度都集中来0-0.5这个范围，所以让0-0.5的范围占更多的范围
+    //可以减少对贴图格式的依赖
+    float2 data = sqrt(abs(motion));
+    return motionSign * data;
+}
+float2 MotionVectorDecode(float2 motion)
+{
+    motion -= 0.5f;
+    float2 motionSign = sign(motion);
+    float2 data = motion + motion;
+    data *= data;
+    return motionSign * data;
+}
+float2 GetClosestFragment(float2 uv)
+{
+    float2 k = _CameraDepthTexture_ST.xy;
+    //在上下左右四个点
+    const float4 neighborhood = float4(
+        SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, saturate(uv - k)),
+        SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, saturate(uv + float2(k.x, -k.y))),
+        SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, saturate(uv + float2(-k.x, k.y))),
+        SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, saturate(uv + k))
+    );
+    // 获取离相机最近的点
+    #if defined(UNITY_REVERSED_Z)
+    #define COMPARE_DEPTH(a, b) step(b, a)
+    #else
+    #define COMPARE_DEPTH(a, b) step(a, b)
+    #endif
+    // 获取离相机最近的点，这里使用 lerp 是避免在shader中写分支判断
+    float3 result = float3(0.0, 0.0, SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, uv));
+    result = lerp(result, float3(-1.0, -1.0, neighborhood.x), COMPARE_DEPTH(neighborhood.x, result.z));
+    result = lerp(result, float3( 1.0, -1.0, neighborhood.y), COMPARE_DEPTH(neighborhood.y, result.z));
+    result = lerp(result, float3(-1.0,  1.0, neighborhood.z), COMPARE_DEPTH(neighborhood.z, result.z));
+    result = lerp(result, float3( 1.0,  1.0, neighborhood.w), COMPARE_DEPTH(neighborhood.w, result.z));
+    return (uv + result.xy * k);
 }
 half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize, float4 params)
 {
@@ -359,4 +408,5 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
     return result;
 
 }
+
 #endif
