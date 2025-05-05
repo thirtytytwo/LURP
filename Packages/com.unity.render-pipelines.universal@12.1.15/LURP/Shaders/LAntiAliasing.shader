@@ -32,12 +32,6 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
             };
-            
-
-            TEXTURE2D(_CameraColorTexture);
-            float4 _CameraColorSize;
-            float4 _FXAAParams;
-            
 
             v2f FXAAVert(a2v i)
             {
@@ -54,9 +48,7 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
 
             half4 FXAAFrag(v2f input) : SV_Target
             {
-                half3 result = half3(1.0, 1.0, 1.0);
-                result = FXAADesktopPixelShader(_CameraColorTexture, input.uv, _CameraColorSize, _FXAAParams);
-                return half4(result, 1);
+                return half4(FXAAPixelShader(input.uv), 1);
             }
             ENDHLSL
         }
@@ -83,11 +75,6 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
                 float2 uv : TEXCOORD0;
             };
 
-            float4 _Jitter;
-            TEXTURE2D(_CameraColorTexture);
-            TEXTURE2D(_LMotionVectorTexture);
-            TEXTURE2D(_LLastFrame);
-
             v2f TAAVert(a2v i)
             {
                 v2f o;
@@ -103,19 +90,8 @@ Shader "Hidden/LURP/Feature/LAnitiAliasing"
 
             half4 TAAFrag(v2f input) : SV_Target
             {
-                //历史帧没有数据，直接返回当前未加Jitter的颜色
-                if (_Jitter.z == 0)
-                {
-                    half4 curFrameNoJitter = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, input.uv);
-                    return curFrameNoJitter;
-                }
-                float2 jitterUV = input.uv + _Jitter.xy;
-                half4 curFrameJitter = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, jitterUV);
-                float2 delta = SAMPLE_TEXTURE2D(_LMotionVectorTexture, sampler_PointClamp, input.uv).xy;
-                float2 motion = MotionVectorDecode(delta);
-                float2 lastFrameUV = input.uv + motion;
-                half4 lastFrame = SAMPLE_TEXTURE2D(_LLastFrame, sampler_LinearClamp, lastFrameUV);
-                return lerp(lastFrame, curFrameJitter, 0.1);
+                half3 color = TAAPixelShader(input.uv);
+                return half4(color, 1);
             }
             ENDHLSL
         }

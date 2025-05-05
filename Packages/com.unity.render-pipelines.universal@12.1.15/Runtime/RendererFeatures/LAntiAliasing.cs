@@ -257,6 +257,7 @@ namespace UnityEngine.Rendering.Universal
                         flag = 1;
                     }
                     cmd.SetGlobalVector(ShaderConstents.JitterId, new Vector4(x, y, flag, 0));
+                    cmd.SetGlobalVector(ShaderConstents.TAAParamsId, new Vector4(0.7f, 0.95f, 6000.0f, 0.3f));
                     
                     cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, mTAAMaterial,0,1);
                     cmd.Blit(source, mLastFrame);
@@ -335,11 +336,7 @@ namespace UnityEngine.Rendering.Universal
                 //decs0 -- motionvector decs1 -- objectID
                 var desc0 = cameraTextureDescriptor;
                 var desc1 = cameraTextureDescriptor;
-#if UNITY_ANDROID || UNITY_IOS
                 desc0.graphicsFormat = GraphicsFormat.R8G8_UNorm;
-#else
-                desc0.graphicsFormat = GraphicsFormat.R8G8_UNorm;
-#endif
                 desc1.graphicsFormat = GraphicsFormat.R8_UNorm;
                 desc0.depthBufferBits = 0;
                 desc1.depthBufferBits = 0;
@@ -394,6 +391,9 @@ namespace UnityEngine.Rendering.Universal
                     DrawCameraMotionVectors(context, cmd, camera);
                     DrawObjectMotionVectors(context, ref renderingData, camera);
                     
+                    cmd.SetGlobalTexture(ShaderConstents.lastObjectIDTextureId, mObjectIDTextures[ShaderConstents.FrameCount % 2]);
+                    cmd.SetGlobalTexture(ShaderConstents.curObjectIDTextureId, mObjectIDTextures[(ShaderConstents.FrameCount + 1) % 2]);
+
                 }
                 ExecuteCommand(context, cmd);
                 CommandBufferPool.Release(cmd);
@@ -522,6 +522,7 @@ namespace UnityEngine.Rendering.Universal
             public static readonly int CameraDepthSizeId = Shader.PropertyToID("_CameraDepthSize");
             public static readonly int FXAAParamsId = Shader.PropertyToID("_FXAAParams");
             public static readonly int PrevViewProjMatrixId = Shader.PropertyToID("_PrevViewProjMatrix");
+            public static readonly int TAAParamsId = Shader.PropertyToID("_TAAParams");
 
             public static int FrameCount;
         }

@@ -72,16 +72,34 @@
 /*-------------------------------------------------------------------------------------------*/
 #endif
 /*-------------------------------------------------------------------------------------------*/
+#if defined(UNITY_REVERSED_Z)
+    #define COMPARE_DEPTH(a, b) step(b, a)
+#else
+    #define COMPARE_DEPTH(a, b) step(a, b)
+#endif
 
 TEXTURE2D(_CameraDepthTexture);
-float4 _CameraDepthTexture_ST;
+TEXTURE2D(_CameraColorTexture);
+float4 _CameraColorSize;
+float4 _CameraDepthSize;
 
-float GetLuminance(TEXTURE2D(inputTexture), float2 pos)
+//
+float4 _FXAAParams;
+
+//
+TEXTURE2D(_LMotionVectorTexture);
+TEXTURE2D(_LCurrentObjectIDTexture);
+TEXTURE2D(_LLastObjectIDTexture);
+TEXTURE2D(_LLastFrame);
+float4 _Jitter;
+float4 _TAAParams;
+
+float GetLuminance(float2 pos)
 {
     #if COMPUTE_FAST
-    return SAMPLE_TEXTURE2D(inputTexture, sampler_LinearClamp, pos).g;
+    return SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, pos).g;
     #else
-    return Luminance(SAMPLE_TEXTURE2D(inputTexture, sampler_LinearClamp, pos));
+    return Luminance(SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, pos));
     #endif
 }
 float2 MotionVectorEncode(float2 motion)
@@ -101,37 +119,13 @@ float2 MotionVectorDecode(float2 motion)
     data *= data;
     return motionSign * data;
 }
-float2 GetClosestFragment(float2 uv)
-{
-    float2 k = _CameraDepthTexture_ST.xy;
-    //在上下左右四个点
-    const float4 neighborhood = float4(
-        SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, saturate(uv - k)),
-        SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, saturate(uv + float2(k.x, -k.y))),
-        SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, saturate(uv + float2(-k.x, k.y))),
-        SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, saturate(uv + k))
-    );
-    // 获取离相机最近的点
-    #if defined(UNITY_REVERSED_Z)
-    #define COMPARE_DEPTH(a, b) step(b, a)
-    #else
-    #define COMPARE_DEPTH(a, b) step(a, b)
-    #endif
-    // 获取离相机最近的点，这里使用 lerp 是避免在shader中写分支判断
-    float3 result = float3(0.0, 0.0, SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, uv));
-    result = lerp(result, float3(-1.0, -1.0, neighborhood.x), COMPARE_DEPTH(neighborhood.x, result.z));
-    result = lerp(result, float3( 1.0, -1.0, neighborhood.y), COMPARE_DEPTH(neighborhood.y, result.z));
-    result = lerp(result, float3(-1.0,  1.0, neighborhood.z), COMPARE_DEPTH(neighborhood.z, result.z));
-    result = lerp(result, float3( 1.0,  1.0, neighborhood.w), COMPARE_DEPTH(neighborhood.w, result.z));
-    return (uv + result.xy * k);
-}
-half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize, float4 params)
+half3 FXAAPixelShader(float2 pos)
 {
     #ifdef FXAA_USE_CONSOLE
-    half3 col = SAMPLE_TEXTURE2D(inputTexture, sampler_LinearClamp, pos).rgb;
-    float2 positionSS = pos * texSize.xy;
+    half3 col = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, pos).rgb;
+    float2 positionSS = pos * _CameraColorSize.xy;
     float2 positionNDC = pos;
-    half3 result = ApplyFXAA(col, positionNDC, positionSS, texSize, inputTexture);
+    half3 result = ApplyFXAA(col, positionNDC, positionSS, _CameraColorSize, _CameraColorTexture);
     return result;
     #endif
     
@@ -139,12 +133,12 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
     posM.x = pos.x;
     posM.y = pos.y;
     int2 posSS;
-    posSS.x = pos.x * texSize.x;
-    posSS.y = pos.y * texSize.y;
+    posSS.x = pos.x * _CameraColorSize.x;
+    posSS.y = pos.y * _CameraColorSize.y;
 
 #if COMPUTE_FAST
-    float4 luma4A = GATHER_GREEN_TEXTURE2D(inputTexture, sampler_PointClamp, posM);
-    float4 luma4B = GATHER_GREEN_TEXTURE2D(inputTexture, sampler_PointClamp, posM - float2(texSize.z, texSize.w));
+    float4 luma4A = GATHER_GREEN_TEXTURE2D(_CameraColorTexture, sampler_PointClamp, posM);
+    float4 luma4B = GATHER_GREEN_TEXTURE2D(_CameraColorTexture, sampler_PointClamp, posM - float2(texSize.z, texSize.w));
 
     float lumaM = luma4A.w;
     float lumaE = luma4A.z;
@@ -154,11 +148,11 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
     float lumaW = luma4B.x;
     float lumaSW = luma4B.w;
 #else
-    float lumaM = Luminance(saturate(FXAALoad(posSS, 0, 0, texSize, inputTexture)));
-    float lumaE = Luminance(saturate(FXAALoad(posSS, 1, 0, texSize, inputTexture)));
-    float lumaN = Luminance(saturate(FXAALoad(posSS, 0, 1, texSize, inputTexture)));
-    float lumaW = Luminance(saturate(FXAALoad(posSS, -1, 0, texSize, inputTexture)));
-    float lumaS = Luminance(saturate(FXAALoad(posSS, 0, -1, texSize, inputTexture)));
+    float lumaM = Luminance(saturate(FXAALoad(posSS, 0, 0, _CameraColorSize, _CameraColorTexture)));
+    float lumaE = Luminance(saturate(FXAALoad(posSS, 1, 0, _CameraColorSize, _CameraColorTexture)));
+    float lumaN = Luminance(saturate(FXAALoad(posSS, 0, 1, _CameraColorSize, _CameraColorTexture)));
+    float lumaW = Luminance(saturate(FXAALoad(posSS, -1, 0, _CameraColorSize, _CameraColorTexture)));
+    float lumaS = Luminance(saturate(FXAALoad(posSS, 0, -1, _CameraColorSize, _CameraColorTexture)));
 #endif
     float lumaMaxSM = max(lumaS, lumaM);
     float lumaMinSM = min(lumaS, lumaM);
@@ -169,22 +163,22 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
     float rangeMax = max(lumaMaxESM, lumaMaxWN);
     float rangeMin = min(lumaMinESM, lumaMinWN);
     float range = rangeMax - rangeMin;
-    float rangeMaxScaled = rangeMax * params.x;
-    float rangeThreshold = max(params.y, rangeMaxScaled);
+    float rangeMaxScaled = rangeMax * _FXAAParams.x;
+    float rangeThreshold = max(_FXAAParams.y, rangeMaxScaled);
     bool needContinue = range > rangeThreshold;
     if (!needContinue)
     {
-        return SAMPLE_TEXTURE2D(inputTexture, sampler_LinearClamp, posM).xyz;
+        return SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, posM).xyz;
     }
 
 #if COMPUTE_FAST
-    float lumaNW = FXAALoad(posSS, -1, 1, texSize, inputTexture).g;
-    float lumaSE = FXAALoad(posSS, 1, -1, texSize, inputTexture).g;
+    float lumaNW = FXAALoad(posSS, -1, 1, texSize, _CameraColorTexture).g;
+    float lumaSE = FXAALoad(posSS, 1, -1, texSize, _CameraColorTexture).g;
 #else
-    float lumaNE = Luminance(saturate(FXAALoad(posSS, 1, 1, texSize, inputTexture)));
-    float lumaNW = Luminance(saturate(FXAALoad(posSS, -1, 1, texSize, inputTexture)));
-    float lumaSE = Luminance(saturate(FXAALoad(posSS, 1, -1, texSize, inputTexture)));
-    float lumaSW = Luminance(saturate(FXAALoad(posSS, -1, -1, texSize, inputTexture)));
+    float lumaNE = Luminance(saturate(FXAALoad(posSS, 1, 1, _CameraColorSize, _CameraColorTexture)));
+    float lumaNW = Luminance(saturate(FXAALoad(posSS, -1, 1, _CameraColorSize, _CameraColorTexture)));
+    float lumaSE = Luminance(saturate(FXAALoad(posSS, 1, -1, _CameraColorSize, _CameraColorTexture)));
+    float lumaSW = Luminance(saturate(FXAALoad(posSS, -1, -1, _CameraColorSize, _CameraColorTexture)));
 #endif
     float lumaNS = lumaN + lumaS;
     float lumaWE = lumaW + lumaE;
@@ -211,10 +205,10 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
     bool sampleVDir = (edgeH >= edgeV);
     float subpixA = subpixNSWE * 2.0 + subpixNESENWSW;
     
-    float verticalStep = texSize.w;
+    float verticalStep = _CameraColorSize.w;
     if (!sampleVDir) lumaN = lumaE;
     if (!sampleVDir) lumaS = lumaW;
-    if (!sampleVDir) verticalStep = texSize.z;
+    if (!sampleVDir) verticalStep = _CameraColorSize.z;
     float subpixB = (subpixA * (1.0 / 12.0)) - lumaM;
 
     float positive = abs(lumaN - lumaM);
@@ -229,7 +223,7 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
     float2 uvEdge = posM;
     if (!sampleVDir) uvEdge.x += verticalStep * 0.5f;
     if (sampleVDir)  uvEdge.y += verticalStep * 0.5f;
-    float2 edgeStep = sampleVDir ? float2(texSize.z, 0) : float2(0, texSize.w);
+    float2 edgeStep = sampleVDir ? float2(_CameraColorSize.z, 0) : float2(0, _CameraColorSize.w);
     float subpixE = subpixC * subpixC;
 
     float2 posP;
@@ -245,27 +239,27 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
     
     posP += edgeStep * FXAA_SEARCH_S0;
     posN -= edgeStep * FXAA_SEARCH_S0;
-    pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+    pLumDelta = GetLuminance(posP) - edgeLuma;
     bool doneP = abs(pLumDelta) > gradientThreshold;
-    nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+    nLumDelta = GetLuminance(posN) - edgeLuma;
     bool doneN = abs(nLumDelta) > gradientThreshold;
     bool doneNP = doneP && doneN;
     if (!doneNP)
     {
         if (!doneP)posP += edgeStep * FXAA_SEARCH_S1;
         if (!doneN)posN -= edgeStep * FXAA_SEARCH_S1;
-        if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+        if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
         doneP = abs(pLumDelta) > gradientThreshold;
-        if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+        if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
         doneN = abs(nLumDelta) > gradientThreshold;
         doneNP = doneP && doneN;
         if (!doneNP)
         {
             if (!doneP)posP += edgeStep * FXAA_SEARCH_S2;
             if (!doneN)posN -= edgeStep * FXAA_SEARCH_S2;
-            if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+            if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
             doneP = abs(pLumDelta) > gradientThreshold;
-            if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+            if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
             doneN = abs(nLumDelta) > gradientThreshold;
             doneNP = doneP && doneN;
 #if (FXAA_SEARCH_STEPS > 3)
@@ -273,9 +267,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
             {
                 if (!doneP)posP += edgeStep * FXAA_SEARCH_S3;
                 if (!doneN)posN -= edgeStep * FXAA_SEARCH_S3;
-                if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                 doneP = abs(pLumDelta) > gradientThreshold;
-                if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                 doneN = abs(nLumDelta) > gradientThreshold;
                 doneNP = doneP && doneN;
 #if(FXAA_SEARCH_STEPS > 4)
@@ -283,9 +277,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
                 {
                     if (!doneP)posP += edgeStep * FXAA_SEARCH_S4;
                     if (!doneN)posN -= edgeStep * FXAA_SEARCH_S4;
-                    if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                    if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                     doneP = abs(pLumDelta) > gradientThreshold;
-                    if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                    if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                     doneN = abs(nLumDelta) > gradientThreshold;
                     doneNP = doneP && doneN;
 #if(FXAA_SEARCH_STEPS > 5)
@@ -293,9 +287,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
                     {
                         if (!doneP)posP += edgeStep * FXAA_SEARCH_S5;
                         if (!doneN)posN -= edgeStep * FXAA_SEARCH_S5;
-                        if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                        if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                         doneP = abs(pLumDelta) > gradientThreshold;
-                        if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                        if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                         doneN = abs(nLumDelta) > gradientThreshold;
                         doneNP = doneP && doneN;
 #if(FXAA_SEARCH_STEPS > 6)
@@ -303,9 +297,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
                         {
                             if (!doneP)posP += edgeStep * FXAA_SEARCH_S6;
                             if (!doneN)posN -= edgeStep * FXAA_SEARCH_S6;
-                            if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                            if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                             doneP = abs(pLumDelta) > gradientThreshold;
-                            if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                            if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                             doneN = abs(nLumDelta) > gradientThreshold;
                             doneNP = doneP && doneN;
 #if(FXAA_SEARCH_STEPS > 7)
@@ -313,9 +307,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
                             {
                                 if (!doneP)posP += edgeStep * FXAA_SEARCH_S7;
                                 if (!doneN)posN -= edgeStep * FXAA_SEARCH_S7;
-                                if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                                if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                                 doneP = abs(pLumDelta) > gradientThreshold;
-                                if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                                if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                                 doneN = abs(nLumDelta) > gradientThreshold;
                                 doneNP = doneP && doneN;
 #if(FXAA_SEARCH_STEPS > 8)
@@ -323,9 +317,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
                                 {
                                     if (!doneP)posP += edgeStep * FXAA_SEARCH_S8;
                                     if (!doneN)posN -= edgeStep * FXAA_SEARCH_S8;
-                                    if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                                    if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                                     doneP = abs(pLumDelta) > gradientThreshold;
-                                    if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                                    if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                                     doneN = abs(nLumDelta) > gradientThreshold;
                                     doneNP = doneP && doneN;
 #if(FXAA_SEARCH_STEPS > 9)
@@ -333,9 +327,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
                                     {
                                         if (!doneP)posP += edgeStep * FXAA_SEARCH_S9;
                                         if (!doneN)posN -= edgeStep * FXAA_SEARCH_S9;
-                                        if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                                        if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                                         doneP = abs(pLumDelta) > gradientThreshold;
-                                        if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                                        if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                                         doneN = abs(nLumDelta) > gradientThreshold;
                                         doneNP = doneP && doneN;
 #if(FXAA_SEARCH_STEPS > 10)
@@ -343,9 +337,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
                                         {
                                             if (!doneP)posP += edgeStep * FXAA_SEARCH_S10;
                                             if (!doneN)posN -= edgeStep * FXAA_SEARCH_S10;
-                                            if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                                            if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                                             doneP = abs(pLumDelta) > gradientThreshold;
-                                            if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                                            if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                                             doneN = abs(nLumDelta) > gradientThreshold;
                                             doneNP = doneP && doneN;
 #if(FXAA_SEARCH_STEPS > 11)
@@ -353,9 +347,9 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
                                             {
                                                 if (!doneP)posP += edgeStep * FXAA_SEARCH_S11;
                                                 if (!doneN)posN -= edgeStep * FXAA_SEARCH_S11;
-                                                if (!doneP)pLumDelta = GetLuminance(inputTexture, posP) - edgeLuma;
+                                                if (!doneP)pLumDelta = GetLuminance(posP) - edgeLuma;
                                                 doneP = abs(pLumDelta) > gradientThreshold;
-                                                if (!doneN)nLumDelta = GetLuminance(inputTexture, posN) - edgeLuma;
+                                                if (!doneN)nLumDelta = GetLuminance(posN) - edgeLuma;
                                                 doneN = abs(nLumDelta) > gradientThreshold;
                                                 doneNP = doneP && doneN;
                                             }
@@ -403,10 +397,106 @@ half3 FXAADesktopPixelShader(TEXTURE2D(inputTexture), float2 pos, float4 texSize
     if (!sampleVDir) posF.x += finalBlend * verticalStep;
     
     
-    half3 result = SAMPLE_TEXTURE2D(inputTexture, sampler_LinearClamp, posF).rgb;
+    half3 result = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, posF).rgb;
                 
     return result;
 
+}
+
+half3 TAAPixelShader(float2 pos)
+{
+    half3 curFrameColor = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, pos).rgb;
+    if (_Jitter.z == 0)
+    {
+        return curFrameColor;
+    }
+    //depth compare
+    float4 offsetNegetive = (_CameraDepthSize.zwzw * float4(0,-1,-1,0)) + pos.xyxy;
+    float4 offsetPositive = (_CameraDepthSize.zwzw * float4(1,0,0,1)) + pos.xyxy;
+    float depth0 = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, offsetNegetive.xy);
+    float depth1 = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, offsetNegetive.zw);
+    float3 compare = lerp(float3(0, -1, depth0), float3(-1, 0, depth1), COMPARE_DEPTH(depth1, depth0));
+    depth0 = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, offsetPositive.xy);
+    depth1 = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, offsetPositive.zw);
+    compare = lerp(compare, float3(1, 0, depth0), COMPARE_DEPTH(depth0, compare.z));
+    compare = lerp(compare, float3(0, 1, depth1), COMPARE_DEPTH(depth1, compare.z));
+    depth0 = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, pos.xy);
+    compare = lerp(compare, float3(0, 0, depth0), COMPARE_DEPTH(depth0, compare.z));
+    float2 closetPos = pos.xy + compare.xy * _CameraColorSize.zw;
+    
+    float curObjectID = SAMPLE_DEPTH_TEXTURE(_LCurrentObjectIDTexture, sampler_PointClamp, closetPos);
+    bool needToTAA = curObjectID <= 0.5f;
+    UNITY_BRANCH
+    if (needToTAA)
+    {
+        //motion vector
+        float2 velocity = MotionVectorDecode(SAMPLE_TEXTURE2D(_LMotionVectorTexture, sampler_PointClamp, closetPos).xy);
+
+        //cur frame jitter
+        float2 jitterPos = pos.xy + _Jitter.xy;
+        half3 curFrameColorJitter = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, jitterPos).rgb;
+
+        //4 dir color
+        offsetNegetive = (float4(-1, 0, 0, -1) * _CameraColorSize.zwzw) + pos.xyxy;
+        offsetPositive = (float4(1, 0, 0, 1) * _CameraColorSize.zwzw) + pos.xyxy;
+        half3 color0 = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, offsetNegetive.xy).rgb;
+        half3 color1 = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, offsetNegetive.zw).rgb;
+        half3 color2 = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, offsetPositive.xy).rgb;
+        half3 color3 = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, offsetPositive.zw).rgb;
+        half3 addColor = (color0 + color1 + color2 + color3);
+        //
+        half3 addColor1 = curFrameColorJitter - addColor * 0.25f;
+        half3 curframeFinalColor = addColor1 * _TAAParams.w * 2.71f + curFrameColorJitter;
+        //现在先暂时不加深描边，直接输出jitter后的颜色
+        curframeFinalColor = curFrameColorJitter;
+        curframeFinalColor = max(curframeFinalColor, 0.f);
+        curframeFinalColor = min(curframeFinalColor, 64500.f);
+
+        //last frame id
+        float lastFrameObjectID = SAMPLE_DEPTH_TEXTURE(_LLastObjectIDTexture, sampler_PointClamp, closetPos);
+        bool isEdge = curObjectID < 0.1f && lastFrameObjectID > 0.1f;
+        // return half3(isEdge,isEdge,isEdge);
+        UNITY_BRANCH
+        if (!isEdge)
+        {
+            float2 lastPos = pos + velocity;
+            half3 lastFrameColor = SAMPLE_TEXTURE2D(_LLastFrame, sampler_LinearClamp, lastPos).rgb;
+            //4 dir clamp
+            half3 minColor = min(curFrameColor, color0);
+            minColor = min(minColor, color1);
+            minColor = min(minColor, color2);
+            minColor = min(minColor, color3);
+            half3 maxColor = max(curFrameColor, color0);
+            maxColor = max(maxColor, color1);
+            maxColor = max(maxColor, color2);
+            maxColor = max(maxColor, color3);
+            half3 lastFrameFinalColor = max(lastFrameColor, minColor);
+            lastFrameFinalColor = min(lastFrameFinalColor, maxColor);
+        
+            //motion vector length for lerp
+            float motionLength = length(velocity);
+            float motionLengthClamp = clamp(motionLength * _TAAParams.z, 0.0, 1.0);
+            float motionWeight = lerp(_TAAParams.x, _TAAParams.y, motionLengthClamp);
+        
+            half3 finalColor = lerp(curframeFinalColor, lastFrameFinalColor, motionWeight);
+            finalColor = max(finalColor, 0.f);
+            finalColor = min(finalColor, 64500.f);
+            return finalColor;
+        }
+        else
+        {
+            half3 finalColor = curframeFinalColor + addColor;
+            finalColor *= 0.2f;
+            finalColor = max(finalColor, 0.f);
+            finalColor = min(finalColor, 64500.f);
+            return finalColor;
+        }
+        
+    }
+    else
+    {
+        return curFrameColor;
+    }
 }
 
 #endif
