@@ -40,11 +40,6 @@ Shader "Hidden/LURP/Feature/LMotionVector"
             {
                 v2f output;
                 output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
-                #ifdef UNITY_REVERSED_Z
-                output.positionCS.z -= unity_MotionVectorsParams.z * output.positionCS.w;
-                #else
-                output.positionCS.z += unity_MotionVectorsParams.z * output.positionCS.w;
-                #endif
 
                 output.positionVP = mul(UNITY_MATRIX_VP, mul(UNITY_MATRIX_M, input.positionOS));
 
@@ -129,10 +124,10 @@ Shader "Hidden/LURP/Feature/LMotionVector"
             {
                 #if UNITY_REVERSED_Z
                 float deviceDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, input.uv.xy);
-            #else
+                #else
                 float deviceDepth = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, sampler_PointClamp, input.uv.xy);
                 deviceDepth = deviceDepth * 2.0 - 1.0;
-            #endif
+                #endif
                 float3 positionWS = ComputeWorldSpacePosition(input.uv.xy, deviceDepth, UNITY_MATRIX_I_VP);
 
                 float4 previousPositionVP = mul(_PrevViewProjMatrix, float4(positionWS, 1.0));

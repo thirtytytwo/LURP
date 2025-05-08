@@ -444,18 +444,15 @@ half3 TAAPixelShader(float2 pos)
         half3 color2 = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, offsetPositive.xy).rgb;
         half3 color3 = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, offsetPositive.zw).rgb;
         half3 addColor = (color0 + color1 + color2 + color3);
-        //
+        
         half3 addColor1 = curFrameColorJitter - addColor * 0.25f;
         half3 curframeFinalColor = addColor1 * _TAAParams.w * 2.71f + curFrameColorJitter;
-        //现在先暂时不加深描边，直接输出jitter后的颜色
-        curframeFinalColor = curFrameColorJitter;
         curframeFinalColor = max(curframeFinalColor, 0.f);
         curframeFinalColor = min(curframeFinalColor, 64500.f);
 
         //last frame id
         float lastFrameObjectID = SAMPLE_DEPTH_TEXTURE(_LLastObjectIDTexture, sampler_PointClamp, closetPos);
         bool isEdge = curObjectID < 0.1f && lastFrameObjectID > 0.1f;
-        // return half3(isEdge,isEdge,isEdge);
         UNITY_BRANCH
         if (!isEdge)
         {
