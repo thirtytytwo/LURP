@@ -17,10 +17,10 @@ MonoBehaviour:
   lightLayerName1: Light Layer 1
   lightLayerName2: Light Layer 2
   lightLayerName3: Light Layer 3
-  lightLayerName4: Light Layer 4
-  lightLayerName5: Light Layer 5
-  lightLayerName6: Light Layer 6
-  lightLayerName7: Light Layer 7
+  lightLayerName4: Character1
+  lightLayerName5: Character2
+  lightLayerName6: Character3
+  lightLayerName7: Character4
   m_StripDebugVariants: 1
   m_StripUnusedPostProcessingVariants: 1
   m_StripUnusedVariants: 1

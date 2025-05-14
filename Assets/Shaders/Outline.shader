@@ -10,7 +10,7 @@ Shader "Unlit/Outline"
         LOD 100
         Pass
         {
-            Tags { "RenderType"="Opaque" "LightMode" = "UniversalForward" "Queue" = "Geometry"}
+            Tags {"LightMode" = "UniversalForward" "Queue" = "Geometry"}
             ZWrite On
             Cull Back
             HLSLPROGRAM
@@ -106,7 +106,7 @@ Shader "Unlit/Outline"
                 float3 bitangent = cross(v.normal, v.Tangent.xyz) * v.Tangent.w;
                 float3x3 tbn = float3x3(v.Tangent.xyz, bitangent, v.normal);
                 float3 resultNormal = mul(packNormal, tbn);
-                float3 vertPos = v.vertex.xyz + resultNormal * _Outline * 0.0001;
+                float3 vertPos = v.vertex.xyz + resultNormal * _Outline * 0.1;
                 o.vertex = TransformObjectToHClip(vertPos);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 return o;

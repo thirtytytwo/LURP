@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb78c03f1287b844997a4e1573701f47, type: 3}
   m_Name: LScreenSpaceShadow
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   m_ScreenSpaceShadowMaterial: {fileID: 2100000, guid: abea1aa944d9aba44af77daaa697263d,
     type: 2}
 --- !u!114 &11400000
@@ -68,8 +68,8 @@ MonoBehaviour:
     zFailOperation: 0
   m_ShadowTransparentReceive: 0
   m_RenderingMode: 0
-  m_DepthPrimingMode: 2
-  m_CopyDepthMode: 2
+  m_DepthPrimingMode: 0
+  m_CopyDepthMode: 0
   m_AccurateGbufferNormals: 0
   m_ClusteredRendering: 0
   m_TileSize: 32
@@ -88,9 +88,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 1
   mSettings:
-    AAType: 1
+    AAType: 2
     FXAAQuality: 2
-    FXAAComputeMode: 0
-    FXAAEdgeThresholdMin: 0.104
-    FXAAEdgeThreshold: 0.195
-    TAAQuality: 0
+    FXAAComputeMode: 1
+    FXAAEdgeThresholdMin: 0.448
+    FXAAEdgeThreshold: 0.477
+    TAAQuality: 1
