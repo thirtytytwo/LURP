@@ -48,6 +48,9 @@
 
 /*-------------------------------------------------------------------------------------------*/
 #if SHADER_API_MOBILE
+#define FXAA_SEARCH_S0 0
+#define FXAA_SEARCH_S1 0
+#define FXAA_SEARCH_S2 0
 /*-------------------------------------------------------------------------------------------*/
 #ifdef QUALITY_LOW
 #define FXAA_USE_CONSOLE 1
@@ -138,7 +141,7 @@ half3 FXAAPixelShader(float2 pos)
 
 #if COMPUTE_FAST
     float4 luma4A = GATHER_GREEN_TEXTURE2D(_CameraColorTexture, sampler_PointClamp, posM);
-    float4 luma4B = GATHER_GREEN_TEXTURE2D(_CameraColorTexture, sampler_PointClamp, posM - float2(texSize.z, texSize.w));
+    float4 luma4B = GATHER_GREEN_TEXTURE2D(_CameraColorTexture, sampler_PointClamp, posM - float2(_CameraColorSize.z, _CameraColorSize.w));
 
     float lumaM = luma4A.w;
     float lumaE = luma4A.z;
@@ -172,8 +175,8 @@ half3 FXAAPixelShader(float2 pos)
     }
 
 #if COMPUTE_FAST
-    float lumaNW = FXAALoad(posSS, -1, 1, texSize, _CameraColorTexture).g;
-    float lumaSE = FXAALoad(posSS, 1, -1, texSize, _CameraColorTexture).g;
+    float lumaNW = FXAALoad(posSS, -1, 1, _CameraColorSize, _CameraColorTexture).g;
+    float lumaSE = FXAALoad(posSS, 1, -1, _CameraColorSize, _CameraColorTexture).g;
 #else
     float lumaNE = Luminance(saturate(FXAALoad(posSS, 1, 1, _CameraColorSize, _CameraColorTexture)));
     float lumaNW = Luminance(saturate(FXAALoad(posSS, -1, 1, _CameraColorSize, _CameraColorTexture)));
@@ -397,9 +400,9 @@ half3 FXAAPixelShader(float2 pos)
     if (!sampleVDir) posF.x += finalBlend * verticalStep;
     
     
-    half3 result = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, posF).rgb;
+    half3 result1 = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, posF).rgb;
                 
-    return result;
+    return result1;
 
 }
 

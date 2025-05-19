@@ -6,8 +6,10 @@ Shader "Hidden/LURP/Feature/LMotionVector"
         {
             Name "LMotionVectorObject"
             Tags { "LightMode" = "LMotionVectors" }
+            
+            ZWrite Off
+            ZTest LEqual
             HLSLPROGRAM
-
             #pragma exclude_renderers gles gles3 glcore
             #pragma target 4.5
 

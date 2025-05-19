@@ -73,6 +73,8 @@ namespace UnityEngine.Rendering.Universal
                 return;
             }
 
+            if (renderingData.cameraData.camera.cameraType != CameraType.Game) return;
+
             if (mSettings.AAType == LAntiAliasingSettings.Type.FXAA)
             {
                 mFXAAPass.Setup(mSettings, mAAMaterial);
@@ -318,16 +320,16 @@ namespace UnityEngine.Rendering.Universal
                 m_DepthIdentifier = renderingData.cameraData.renderer.cameraDepthTarget;
                 
                 //Setup DepthState if we write depth to depthbuffer already
-                if (cameraData.renderer.useDepthPriming)
-                {
-                    m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.LessEqual);
-                    m_RenderStateBlock.mask |= RenderStateMask.Depth;
-                }
-                else
-                {
-                    m_RenderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
-                    m_RenderStateBlock.mask |= RenderStateMask.Depth;
-                }
+                // if (cameraData.renderer.useDepthPriming)
+                // {
+                //     m_RenderStateBlock.depthState = new DepthState(false, CompareFunction.LessEqual);
+                //     m_RenderStateBlock.mask |= RenderStateMask.Depth;
+                // }
+                // else
+                // {
+                //     m_RenderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
+                //     m_RenderStateBlock.mask |= RenderStateMask.Depth;
+                // }
             }
 
             public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
@@ -351,7 +353,7 @@ namespace UnityEngine.Rendering.Universal
                 
                 var identifiers = new RenderTargetIdentifier[] { motionVectorIdentifier, ObjectIDIdentifier };
                 ConfigureTarget(identifiers, m_DepthIdentifier);
-                ConfigureClear(ClearFlag.None, Color.clear);
+                // ConfigureClear(ClearFlag.None, Color.clear);
             }
 
             #endregion
@@ -453,7 +455,7 @@ namespace UnityEngine.Rendering.Universal
                 var renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
                 // Draw Renderers 
                 //opaque
-                context.DrawRenderers(renderingData.cullResults, ref opaqueDrawing, ref opauqeFilter, ref m_RenderStateBlock);
+                context.DrawRenderers(renderingData.cullResults, ref opaqueDrawing, ref opauqeFilter, ref renderStateBlock);
                 //transparent
                 context.DrawRenderers(renderingData.cullResults, ref transDrawing, ref transFilter, ref renderStateBlock);
             }
