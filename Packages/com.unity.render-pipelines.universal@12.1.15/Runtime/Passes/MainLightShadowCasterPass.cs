@@ -188,6 +188,7 @@ namespace UnityEngine.Rendering.Universal.Internal
                 new Vector4(1f / m_MainLightShadowmapTexture.width, 1f / m_MainLightShadowmapTexture.height, m_MainLightShadowmapTexture.width, m_MainLightShadowmapTexture.height));
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
+            
         }
 
         void RenderMainLightCascadeShadowmap(ref ScriptableRenderContext context, ref CullingResults cullResults, ref LightData lightData, ref ShadowData shadowData)
