@@ -26,6 +26,12 @@ namespace UnityEngine.Rendering.Universal
             ACCURATE = 1
         }
         
+        internal enum DepthTextureMode
+        {
+            AfterOpaque = 0,
+            ForcePrepass = 1
+        }
+        
         [SerializeField]internal Type AAType = Type.NONE;
         //FXAA
         [SerializeField]internal Quality FXAAQuality = Quality.LOW;
@@ -33,7 +39,7 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField]internal float FXAAEdgeThresholdMin = 0.0625f;
         [SerializeField]internal float FXAAEdgeThreshold = 0.1875f;
         //TAA
-        [SerializeField]internal Quality TAAQuality = Quality.LOW;
+        [SerializeField] internal DepthTextureMode TAADepthTextureMode;
     }
     internal class LAntiAliasing : ScriptableRendererFeature
     {
@@ -87,7 +93,7 @@ namespace UnityEngine.Rendering.Universal
                     Debug.LogError("运行时找不到TAA所需的MotionVectorShader，请检查资源或重编译Feature");
                     return;
                 }
-                mMotionVectorPass.Setup(mMotionVectorMaterial);
+                mMotionVectorPass.Setup(mMotionVectorMaterial, mSettings);
                 renderer.EnqueuePass(mMotionVectorPass);
                 mTAAPass.Setup(mAAMaterial);
                 renderer.EnqueuePass(mTAAPass);
@@ -300,13 +306,15 @@ namespace UnityEngine.Rendering.Universal
             private int mHeight = 0;
             
             PreviousFrameData m_MotionData;
+            LAntiAliasingSettings m_Settings;
             ProfilingSampler m_ProfilingSampler = ProfilingSampler.Get(URPProfileId.MotionVectors);
             #endregion
 
             #region State
-            internal void Setup(Material material)
+            internal void Setup(Material material, LAntiAliasingSettings settings)
             {
                 mMaterial = material;
+                m_Settings = settings;
             }
 
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
@@ -317,8 +325,17 @@ namespace UnityEngine.Rendering.Universal
                 //TODO: only base camera can draw
                 SupportedRenderingFeatures.active.motionVectors = true;
                 m_MotionData = MotionVectorRendering.instance.GetMotionDataForCamera(camera, cameraData);
-                m_DepthIdentifier = renderingData.cameraData.renderer.cameraDepthTarget;
-                
+
+                //if force prepass with no depth priming, the depth target is colortarget, no extra depthattachment
+                if (m_Settings.TAADepthTextureMode == LAntiAliasingSettings.DepthTextureMode.ForcePrepass)
+                {
+                    m_DepthIdentifier = cameraData.renderer.cameraColorTarget;
+                }
+                else
+                {
+                    m_DepthIdentifier = cameraData.renderer.cameraDepthTarget;
+                }
+
                 //Setup DepthState if we write depth to depthbuffer already
                 // if (cameraData.renderer.useDepthPriming)
                 // {
