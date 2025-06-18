@@ -63,7 +63,7 @@ Shader "LURP/Character"
         Pass
         {
             Name "ShadowCaster"
-            Tags {"LightMode" = "ShadowCaster"}
+            Tags {"LightMode" = "LShadowCaster"}
 
             ZWrite On
             ZTest LEqual
