@@ -23,7 +23,7 @@ Shader "LURP/Character"
 
             struct appdata
             {
-                float4 vertex : POSITION;
+                float4 positionOS : POSITION;
                 float3 normal : NORMAL;
                 float2 uv : TEXCOORD0;
             };
@@ -32,30 +32,61 @@ Shader "LURP/Character"
             {
                 float2 uv : TEXCOORD0;
                 float3 normal : TEXCOORD1;
-                float4 vertex : SV_POSITION;
+                float3 positionWS : TEXCOORD2;
+                float4 positionCS : SV_POSITION;
             };
-
-            sampler2D _MainTex;
-            float4 _MainTex_ST;
             float _Outline;
+
+            TEXTURE2D(_CharacterShadowmap);
+            SAMPLER(sampler_CharacterShadowmap);
+            int _CharacterCount;
+            float4x4 _WorldToShadowMatrix[4];
+            
             
             v2f vert (appdata v)
             {
                 v2f o;
-                o.vertex = TransformObjectToHClip(v.vertex);
-                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+                o.positionCS = TransformObjectToHClip(v.positionOS);
+                o.uv = v.uv;
                 o.normal = TransformObjectToWorldNormal(v.normal);
+                o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
                 return o;
             }
 
+            uint GetShadowMapIndex(float3 positionWS)
+            {
+                uint shadowMapIndex = 0;
+                for (int i = 0; i < _CharacterCount; i++)
+                {
+                    float4 shadowCoord = mul(_WorldToShadowMatrix[i], float4(positionWS.xyz, 1.0));
+                    bool flag = (shadowCoord.x >= 0 && shadowCoord.x <= 1) && (shadowCoord.y >= 0 && shadowCoord.y <= 1) && (shadowCoord.z >= 0 && shadowCoord.z <= 1);
+
+                    if (flag) shadowMapIndex |= (1u << i);
+                }
+                return shadowMapIndex;
+            }
+            
+
             half4 frag (v2f i) : SV_Target
             {
-                half3 color = tex2D(_MainTex, i.uv).rgb;
                 float3 lightDir = normalize(_MainLightPosition.xyz);
-                float3 viewDir = normalize(_WorldSpaceCameraPos.xyz - i.vertex.xyz);
+                float3 viewDir = normalize(_WorldSpaceCameraPos.xyz - i.positionCS.xyz);
                 float NdotL = dot(i.normal, lightDir) * 0.5 + 0.5;
                 float3 diffuse = NdotL  * _MainLightColor.rgb;
-                return half4(diffuse, 1);
+
+                //shadow
+                uint shadowMapIndex = GetShadowMapIndex(i.positionWS);
+                half shadow = 1;
+                //1 char
+                if (shadowMapIndex & (1u << 0)) shadow = 1 - SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_CharacterShadowmap, mul(_WorldToShadowMatrix[0], float4(i.positionWS.xyz, 1.0)).xy).r; 
+                //2 char
+                // if (shadowMapIndex & (1u << 1)) shadow = SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_CharacterShadowmap, mul(_WorldToShadowMatrix[1], float4(i.positionWS.xyz, 1.0)).xy).r; 
+                // //3 char
+                // if (shadowMapIndex & (1u << 2)) shadow = SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_CharacterShadowmap, mul(_WorldToShadowMatrix[2], float4(i.positionWS.xyz, 1.0)).xy).r; 
+                // //4 char
+                // if (shadowMapIndex & (1u << 3)) shadow = SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_CharacterShadowmap, mul(_WorldToShadowMatrix[3], float4(i.positionWS.xyz, 1.0)).xy).r; 
+                
+                return half4(diffuse * shadow, 1);
             }
             ENDHLSL
         }
