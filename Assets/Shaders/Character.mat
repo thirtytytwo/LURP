@@ -26,6 +26,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Outline: 4.11
+    - _CharacterID: -1
+    - _Outline: 0
     m_Colors: []
   m_BuildTextureStacks: []

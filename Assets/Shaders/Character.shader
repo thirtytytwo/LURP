@@ -20,6 +20,7 @@ Shader "LURP/Character"
             #pragma fragment frag
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
             struct appdata
             {
@@ -37,8 +38,8 @@ Shader "LURP/Character"
             };
             float _Outline;
 
-            TEXTURE2D(_CharacterShadowmap);
-            SAMPLER(sampler_CharacterShadowmap);
+            TEXTURE2D_SHADOW(_CharacterShadowmap);
+            SAMPLER_CMP(sampler_CharacterShadowmap);
             int _CharacterCount;
             float4x4 _WorldToShadowMatrix[4];
             
@@ -53,17 +54,40 @@ Shader "LURP/Character"
                 return o;
             }
 
-            uint GetShadowMapIndex(float3 positionWS)
+            real SampleShadowmap(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float3 shadowCoord)
             {
-                uint shadowMapIndex = 0;
+                real attenuation;
+            
+                    // 1-tap hardware comparison
+                    attenuation = real(SAMPLE_TEXTURE2D_SHADOW(ShadowMap, sampler_ShadowMap, shadowCoord));
+            
+                // Shadow coords that fall out of the light frustum volume must always return attenuation 1.0
+                // TODO: We could use branch here to save some perf on some platforms.
+                return BEYOND_SHADOW_FAR(shadowCoord) ? 1.0 : attenuation;
+            }
+
+            half SampleCharacterShadow(float3 positionWS)
+            {
+                half shadow = 0;
                 for (int i = 0; i < _CharacterCount; i++)
                 {
                     float4 shadowCoord = mul(_WorldToShadowMatrix[i], float4(positionWS.xyz, 1.0));
-                    bool flag = (shadowCoord.x >= 0 && shadowCoord.x <= 1) && (shadowCoord.y >= 0 && shadowCoord.y <= 1) && (shadowCoord.z >= 0 && shadowCoord.z <= 1);
-
-                    if (flag) shadowMapIndex |= (1u << i);
+                    float clampXMin = (i % 2) == 0 ? 0 : 0.5;
+                    float clampXMax = (i % 2) == 0 ? 0.5 : 1;
+                    float clampYMin = (i / 2) == 0 ? 0 : 0.5;
+                    float clampYMax = (i / 2) == 0 ? 0.5 : 1;
+                    float clampZMin = 0;
+                    float clampZMax = 1;
+                    bool flag = (shadowCoord.x >= clampXMin && shadowCoord.x <= clampXMax) &&
+                        (shadowCoord.y >= clampYMin && shadowCoord.y <= clampYMax) &&
+                        (shadowCoord.z >= clampZMin && shadowCoord.z <= clampZMax);
+                    if (flag)
+                    {
+                        half val = SAMPLE_TEXTURE2D_SHADOW(_CharacterShadowmap, sampler_CharacterShadowmap, shadowCoord.xyz);
+                        shadow += val;
+                    }
                 }
-                return shadowMapIndex;
+                return clamp(shadow, 0, 1);
             }
             
 
@@ -75,18 +99,10 @@ Shader "LURP/Character"
                 float3 diffuse = NdotL  * _MainLightColor.rgb;
 
                 //shadow
-                uint shadowMapIndex = GetShadowMapIndex(i.positionWS);
-                half shadow = 1;
-                //1 char
-                if (shadowMapIndex & (1u << 0)) shadow = 1 - SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_CharacterShadowmap, mul(_WorldToShadowMatrix[0], float4(i.positionWS.xyz, 1.0)).xy).r; 
-                //2 char
-                // if (shadowMapIndex & (1u << 1)) shadow = SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_CharacterShadowmap, mul(_WorldToShadowMatrix[1], float4(i.positionWS.xyz, 1.0)).xy).r; 
-                // //3 char
-                // if (shadowMapIndex & (1u << 2)) shadow = SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_CharacterShadowmap, mul(_WorldToShadowMatrix[2], float4(i.positionWS.xyz, 1.0)).xy).r; 
-                // //4 char
-                // if (shadowMapIndex & (1u << 3)) shadow = SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_CharacterShadowmap, mul(_WorldToShadowMatrix[3], float4(i.positionWS.xyz, 1.0)).xy).r; 
+                half shadow = SampleCharacterShadow(i.positionWS);
                 
-                return half4(diffuse * shadow, 1);
+                
+                return half4(diffuse * (1 - shadow) , 1.0);
             }
             ENDHLSL
         }
