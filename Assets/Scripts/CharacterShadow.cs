@@ -42,10 +42,11 @@ public class CharacterShadow : MonoBehaviour
     {
         for (int i = 0; i < _Characters.Length; i++)
         {
+            float zfar = 15f;
             Vector3 targetPos = _Characters[i].transform.position + _BoundingPoints - mMainLight.transform.forward * 10f;
 
             Matrix4x4 viewMatrix = Matrix4x4.TRS(targetPos, mMainLight.transform.rotation, Vector3.one).inverse;
-            Matrix4x4 projMatrix = Matrix4x4.Ortho(-_BoundingBoxSize.x, _BoundingBoxSize.x, -_BoundingBoxSize.y, _BoundingBoxSize.y, 1, 100f);
+            Matrix4x4 projMatrix = Matrix4x4.Ortho(-_BoundingBoxSize.x, _BoundingBoxSize.x, -_BoundingBoxSize.y, _BoundingBoxSize.y, 5f, zfar);
 
             if (SystemInfo.usesReversedZBuffer)
             {
@@ -55,11 +56,17 @@ public class CharacterShadow : MonoBehaviour
                 viewMatrix.m23 *= -1;
             }
             
+            Matrix4x4 worldMatrix = Matrix4x4.TRS(targetPos, mMainLight.transform.rotation, new Vector3(_BoundingBoxSize.x * 2, _BoundingBoxSize.y * 2, zfar * 2));
+            print("trans" + worldMatrix.rotation);
+            print("scale" + worldMatrix.lossyScale);
+            
             CharacterShadowStruct data = new CharacterShadowStruct();
             data.characterID = mCharacterID[i];
             data.viewMatrix = viewMatrix;
             data.projectionMatrix = projMatrix;
+            data.worldMatrix = worldMatrix;
             CharacterShadowData.AddData(data);
+            
         }
     }
     

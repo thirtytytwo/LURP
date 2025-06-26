@@ -1,156 +1,313 @@
+using System;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 
-public class LCharacterShadowCasterFeature : ScriptableRendererFeature
+namespace UnityEngine.Rendering.Universal
 {
-    private LCharacterShadowCasterPass mCharacterShadowCasterPass;
-    [Range(0.0f,1.0f)] public float DepthBias = 0.0f;
-    [Range(0.0f, 1.0f)] public float NormalBias = 0.0f;
-    public override void Create()
-    {
-        mCharacterShadowCasterPass = new LCharacterShadowCasterPass();
-    }
 
-    public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
+    [Serializable]
+    internal class LCharacterShadowSetting
     {
-        if(renderingData.cameraData.cameraType != CameraType.Game) return;
-        mCharacterShadowCasterPass.Setup(DepthBias, NormalBias);
-        renderer.EnqueuePass(mCharacterShadowCasterPass);
+        internal enum Quality
+        {
+            LOW,
+            MEDIUM,
+            HIGH
+        }
+
+        [SerializeField] internal bool CharacterShadowSwitch = false;
+        [SerializeField] internal bool SoftShadow = false;
+        [SerializeField] internal Quality ShadowQuality = Quality.LOW;
+        [SerializeField][Range(0f, 1f)] internal float ShadowDepthBias = 0.5f;
     }
+    internal class LCharacterShadowCasterFeature : ScriptableRendererFeature
+    {
+        [SerializeField] internal LCharacterShadowSetting mCharacterShadowSetting = new LCharacterShadowSetting();
+        
+        public Material ScreenSpaceShadowMaterial;
+        private LCharacterShadowCasterPass mCharacterShadowCasterPass;
+        private LSoftScreenShadowPass mSoftScreenShadowPass;
+        public override void Create()
+        {
+            mCharacterShadowCasterPass = new LCharacterShadowCasterPass();
+            mCharacterShadowCasterPass.renderPassEvent = RenderPassEvent.BeforeRendering;
+            mSoftScreenShadowPass = new LSoftScreenShadowPass(ScreenSpaceShadowMaterial);
+            mSoftScreenShadowPass.renderPassEvent = RenderPassEvent.AfterRenderingOpaques;
+        }
+
+        public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
+        {
+            //if(renderingData.cameraData.cameraType != CameraType.Game) return;
+            mCharacterShadowCasterPass.Setup(mCharacterShadowSetting);
+            mSoftScreenShadowPass.Setup(mCharacterShadowSetting);
+            renderer.EnqueuePass(mCharacterShadowCasterPass);
+            renderer.EnqueuePass(mSoftScreenShadowPass);
+        }
     
-    public class LCharacterShadowCasterPass : ScriptableRenderPass
-    {
-        private RenderTargetHandle mCharacterShadowmap;
-        private int mWorldToShadowMatrix;
-        private int mCharacterCount;
-        private int mShadowBias;
-        private int mLightDir;
-        private int mLightPos;
+        public class LCharacterShadowCasterPass : ScriptableRenderPass
+        {
+            private RenderTargetHandle mCharacterShadowmap;
+            private int mWorldToShadowMatrixID;
+            private int mShadowDepthBiasID;
 
-        private ShaderTagId mShaderTagId = new ShaderTagId("LShadowCaster");
-        private ProfilingSampler mProfilingSampler = new ProfilingSampler("LCharacterShadowCasterPass");
+            private ShaderTagId mShaderTagId = new ShaderTagId("LShadowCaster");
+            private ProfilingSampler mProfilingSampler = new ProfilingSampler("LCharacterShadowCasterPass");
         
-        private Matrix4x4[] mCharacterShadowMatrices;
+            private Matrix4x4[] mCharacterShadowMatrices;
 
-        private float mDepthBias;
-        private float mNormalBias;
-        
-
-        public LCharacterShadowCasterPass()
-        {
-            renderPassEvent = RenderPassEvent.BeforeRendering;
-
-            mCharacterShadowMatrices = new Matrix4x4[4];
-            mCharacterShadowmap.Init("_CharacterShadowmap");
+            private int mSize;
+            private float mDepthBias;
             
-            mCharacterCount = Shader.PropertyToID("_CharacterCount");
-            mWorldToShadowMatrix = Shader.PropertyToID("_WorldToShadowMatrix");
-            mShadowBias = Shader.PropertyToID("_ShadowBias");
-            mLightDir = Shader.PropertyToID("_LightDirection");
-            mLightPos = Shader.PropertyToID("_LightPosition");
-        }
-
-        public void Setup(float depthBias, float normalBias)
-        {
-            mDepthBias = depthBias;
-            mNormalBias = normalBias;
-        }
-        public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
-        {
-            RenderTextureDescriptor descriptor = renderingData.cameraData.cameraTargetDescriptor;
-            descriptor.width = 1024;
-            descriptor.height = 1024;
-            descriptor.colorFormat = RenderTextureFormat.Depth;
-            
-            cmd.GetTemporaryRT(mCharacterShadowmap.id, descriptor);
-        }
-
-        public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
-        {
-            ConfigureTarget(mCharacterShadowmap.Identifier(), mCharacterShadowmap.Identifier());
-            ConfigureClear(ClearFlag.Depth, Color.clear);
-        }
-        public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
-        {
-            var data = CharacterShadowData.GetCharacterShadowData();
-            if (data.Length == 0) return;
-            
-            int shadowLightIndex = renderingData.lightData.mainLightIndex;
-            if (shadowLightIndex == -1) return;
-            VisibleLight shadowLight = renderingData.lightData.visibleLights[shadowLightIndex];
-            
-            var cmd = CommandBufferPool.Get();
-            using (new ProfilingScope(cmd, mProfilingSampler))
+            public LCharacterShadowCasterPass()
             {
-                for (int i = 0; i < data.Length; i++)
+                mCharacterShadowMatrices = new Matrix4x4[4];
+                mCharacterShadowmap.Init("_CharacterShadowmap");
+                
+                mWorldToShadowMatrixID = Shader.PropertyToID("_WorldToShadowMatrix");
+                mShadowDepthBiasID = Shader.PropertyToID("_ShadowDepthBias");
+            }
+
+            public void Setup(LCharacterShadowSetting setting)
+            {
+                switch (setting.ShadowQuality)
                 {
-                    var filteringSetting = new FilteringSettings(RenderQueueRange.opaque, LayerMask.GetMask("Character"), data[i].characterID);
-                    var drawingSettings = CreateDrawingSettings(mShaderTagId, ref renderingData, SortingCriteria.CommonOpaque);
+                    case LCharacterShadowSetting.Quality.LOW:
+                        mSize = 256;
+                        break;
+                    case LCharacterShadowSetting.Quality.MEDIUM:
+                        mSize = 512;
+                        break;
+                    case LCharacterShadowSetting.Quality.HIGH:
+                        mSize = 1024;
+                        break;
+                }
+                
+                mDepthBias = setting.ShadowDepthBias;
+            }
+            public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
+            {
+                if (mSize == 0) return;
+                RenderTextureDescriptor descriptor = renderingData.cameraData.cameraTargetDescriptor;
+                descriptor.width = mSize;
+                descriptor.height = mSize;
+                descriptor.colorFormat = RenderTextureFormat.Depth;
+                descriptor.depthBufferBits = 32;
+            
+                cmd.GetTemporaryRT(mCharacterShadowmap.id, descriptor);
+            }
 
-                    float offsetX = (i % 2) * 512;
-                    float offsetY = (i / 2) * 512;
+            public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
+            {
+                ConfigureTarget(mCharacterShadowmap.Identifier(), mCharacterShadowmap.Identifier());
+                ConfigureClear(ClearFlag.Depth, Color.clear);
+            }
+            public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
+            {
+                var camera = renderingData.cameraData.camera;
+                var data = CharacterShadowData.GetCharacterShadowData();
+                if (data.Length == 0) return;
+            
+                int shadowLightIndex = renderingData.lightData.mainLightIndex;
+                if (shadowLightIndex == -1) return;
+                VisibleLight shadowLight = renderingData.lightData.visibleLights[shadowLightIndex];
+            
+                var cmd = CommandBufferPool.Get();
+                using (new ProfilingScope(cmd, mProfilingSampler))
+                {
+                    for (int i = 0; i < data.Length; i++)
+                    {
+                        var filteringSetting = new FilteringSettings(RenderQueueRange.opaque, LayerMask.GetMask("Character"), data[i].characterID);
+                        var drawingSettings = CreateDrawingSettings(mShaderTagId, ref renderingData, SortingCriteria.CommonOpaque);
 
-                    mCharacterShadowMatrices[i] = GetWorldToShadowMatrix(data[i].viewMatrix, data[i].projectionMatrix, new Vector2(offsetX, offsetY), 512, 1024);
+                        float res = mSize / 2.0f;
+                        float offsetX = (i % 2.0f) * res;
+                        float offsetY = (i / 2.0f) * res;
+
+                        mCharacterShadowMatrices[i] = GetWorldToShadowMatrix(data[i].viewMatrix, data[i].projectionMatrix, new Vector2(offsetX, offsetY), res, mSize);
                     
-                    cmd.SetGlobalDepthBias(1.0f, 2.5f);
-                    cmd.SetViewport(new Rect(offsetX, offsetY, 512, 512));
-                    cmd.SetViewProjectionMatrices(data[i].viewMatrix, data[i].projectionMatrix);
+                        cmd.SetViewport(new Rect(offsetX, offsetY, res, res));
+                        cmd.SetViewProjectionMatrices(data[i].viewMatrix, data[i].projectionMatrix);
                     
-                    cmd.SetGlobalVector(mShadowBias, new Vector4(mDepthBias, mNormalBias, 0.0f, 0.0f));
-                    Vector3 lightDirection = -shadowLight.localToWorldMatrix.GetColumn(2);
-                    cmd.SetGlobalVector(mLightDir, new Vector4(lightDirection.x, lightDirection.y, lightDirection.z, 0.0f));
-                    Vector3 lightPosition = shadowLight.localToWorldMatrix.GetColumn(3);
-                    cmd.SetGlobalVector(mLightPos, new Vector4(lightPosition.x, lightPosition.y, lightPosition.z, 1.0f));
-                    
-                    context.ExecuteCommandBuffer(cmd);
-                    cmd.Clear();
-                    context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSetting);
-                    cmd.SetGlobalDepthBias(0.0f, 0.0f);
-                    context.ExecuteCommandBuffer(cmd);
-                    cmd.Clear();
+                        context.ExecuteCommandBuffer(cmd);
+                        cmd.Clear();
+                        context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSetting);
+                        
+                        cmd.SetViewProjectionMatrices(camera.worldToCameraMatrix, camera.projectionMatrix);
+                    }
+                }
+            
+            
+                cmd.SetGlobalTexture(mCharacterShadowmap.id, mCharacterShadowmap.Identifier());
+                cmd.SetGlobalMatrixArray(mWorldToShadowMatrixID, mCharacterShadowMatrices);
+                cmd.SetGlobalFloat(mShadowDepthBiasID, mDepthBias * 0.2f);
+            
+                context.ExecuteCommandBuffer(cmd);
+                CommandBufferPool.Release(cmd);
+            
+            }
+
+            public override void OnCameraCleanup(CommandBuffer cmd)
+            {
+                cmd.ReleaseTemporaryRT(mCharacterShadowmap.id);
+            }
+        
+            private Matrix4x4 GetWorldToShadowMatrix(Matrix4x4 view, Matrix4x4 proj, Vector2 offset, float resulution, float size)
+            {
+                if (SystemInfo.usesReversedZBuffer)
+                {
+                    proj.m20 = -proj.m20;
+                    proj.m21 = -proj.m21;
+                    proj.m22 = -proj.m22;
+                    proj.m23 = -proj.m23;
+                }
+                Matrix4x4 matrix = proj * view;
+            
+                var textureScaleAndBias = Matrix4x4.identity;
+                textureScaleAndBias.m00 = 0.5f;
+                textureScaleAndBias.m11 = 0.5f;
+                textureScaleAndBias.m22 = 0.5f;
+                textureScaleAndBias.m03 = 0.5f;
+                textureScaleAndBias.m23 = 0.5f;
+                textureScaleAndBias.m13 = 0.5f;
+            
+                Matrix4x4 sliceTransform = Matrix4x4.identity;
+                float oneOverAtlasWidth = 1.0f / size;
+                float oneOverAtlasHeight = 1.0f / size;
+                sliceTransform.m00 = resulution * oneOverAtlasWidth;
+                sliceTransform.m11 = resulution * oneOverAtlasHeight;
+                sliceTransform.m03 = offset.x * oneOverAtlasWidth;
+                sliceTransform.m13 = offset.y * oneOverAtlasHeight;
+
+                return sliceTransform * textureScaleAndBias * matrix;
+            }
+        }
+
+        public class LSoftScreenShadowPass : ScriptableRenderPass
+        {
+            private ProfilingSampler mShadowCombineSampler = new ProfilingSampler("L Screen Shadow Pass");
+            private Material mShadowCombineMaterial;
+            //RenderTarget
+            private RenderTargetHandle mTarget;
+
+            private Mesh mQubeMesh;
+
+            private int mCharacterID;
+            private int mCharacterShadowmapSizeID;
+            
+            private float mShadowDepthBias;
+            private float mCharacterShadowmapSize;
+
+            public LSoftScreenShadowPass(Material mat)
+            {
+                mShadowCombineMaterial = mat;
+                mTarget.Init("_LScreenShadowTexture");
+                mCharacterID = Shader.PropertyToID("_CharacterID");
+                mCharacterShadowmapSizeID = Shader.PropertyToID("_CharacterShadowmapSize");
+            }
+
+            public void Setup(LCharacterShadowSetting setting)
+            {
+                switch (setting.ShadowQuality)
+                {
+                    case LCharacterShadowSetting.Quality.LOW:
+                        mCharacterShadowmapSize = 256;
+                        break;
+                    case LCharacterShadowSetting.Quality.MEDIUM:
+                        mCharacterShadowmapSize = 512;
+                        break;
+                    case LCharacterShadowSetting.Quality.HIGH:
+                        mCharacterShadowmapSize = 1024;
+                        break;
                 }
             }
-            
-            
-            cmd.SetGlobalTexture(mCharacterShadowmap.id, mCharacterShadowmap.Identifier());
-            cmd.SetGlobalInt(mCharacterCount, data.Length);
-            cmd.SetGlobalMatrixArray(mWorldToShadowMatrix, mCharacterShadowMatrices);
-            
-            context.ExecuteCommandBuffer(cmd);
-            CommandBufferPool.Release(cmd);
-            
-        }
+            public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
+            {
+                var desc = renderingData.cameraData.cameraTargetDescriptor;
+                // desc.width >>= 1;
+                // desc.height >>= 1;
+                desc.depthBufferBits = 0;
+                desc.msaaSamples = 1;
+                desc.graphicsFormat = RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R8_UNorm, FormatUsage.Linear | FormatUsage.Render)
+                    ? GraphicsFormat.R8_UNorm
+                    : GraphicsFormat.B8G8R8A8_UNorm;
+                
+                cmd.GetTemporaryRT(mTarget.id, desc, FilterMode.Bilinear);
+            }
 
-        public override void OnCameraCleanup(CommandBuffer cmd)
-        {
-            cmd.ReleaseTemporaryRT(mCharacterShadowmap.id);
-        }
-        
-        private Matrix4x4 GetWorldToShadowMatrix(Matrix4x4 view, Matrix4x4 proj, Vector2 offset, float resulution, float size)
-        {
-            
-            Matrix4x4 matrix = proj * view;
-            
-            var textureScaleAndBias = Matrix4x4.identity;
-            textureScaleAndBias.m00 = 0.5f;
-            textureScaleAndBias.m11 = 0.5f;
-            textureScaleAndBias.m22 = 0.5f;
-            textureScaleAndBias.m03 = 0.5f;
-            textureScaleAndBias.m23 = 0.5f;
-            textureScaleAndBias.m13 = 0.5f;
-            
-            Matrix4x4 sliceTransform = Matrix4x4.identity;
-            float oneOverAtlasWidth = 1.0f / size;
-            float oneOverAtlasHeight = 1.0f / size;
-            sliceTransform.m00 = resulution * oneOverAtlasWidth;
-            sliceTransform.m11 = resulution * oneOverAtlasHeight;
-            sliceTransform.m03 = offset.x * oneOverAtlasWidth;
-            sliceTransform.m13 = offset.y * oneOverAtlasHeight;
+            public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
+            {
+                ConfigureTarget(mTarget.Identifier());
+                ConfigureClear(ClearFlag.None, Color.clear);
+                ConfigureColorStoreAction(RenderBufferStoreAction.Store);
+                ConfigureDepthStoreAction(RenderBufferStoreAction.DontCare);
+            }
 
-            return sliceTransform * textureScaleAndBias * matrix;
+            public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
+            {
+                if (mQubeMesh == null) 
+                    mQubeMesh = CreateQubeMesh();
+                var cmd = CommandBufferPool.Get();
+                var cameraData = renderingData.cameraData;
+                var shadowData = CharacterShadowData.characterShadowList;
+                using (new ProfilingScope(cmd, mShadowCombineSampler))
+                {
+                    cmd.SetViewProjectionMatrices(Matrix4x4.identity, Matrix4x4.identity);
+                    cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, mShadowCombineMaterial,0, 0);
+                    cmd.SetViewProjectionMatrices(cameraData.camera.worldToCameraMatrix, cameraData.camera.projectionMatrix);
+                    for (int i = 0; i < shadowData.Count; i++)
+                    {
+                        var shadow = shadowData[i];
+                        cmd.SetGlobalInt(mCharacterID, i);
+                        cmd.SetGlobalVector(mCharacterShadowmapSizeID, new Vector4(mCharacterShadowmapSize, mCharacterShadowmapSize, 1.0f/mCharacterShadowmapSize, 1.0f/mCharacterShadowmapSize));
+                        cmd.DrawMesh(mQubeMesh, shadow.worldMatrix, mShadowCombineMaterial, 0, 1);
+                    }
+                }
+                cmd.SetGlobalTexture(mTarget.id, mTarget.Identifier());
+                context.ExecuteCommandBuffer(cmd);
+                CommandBufferPool.Release(cmd);
+            }
+
+            public override void OnCameraCleanup(CommandBuffer cmd)
+            {
+                cmd.ReleaseTemporaryRT(mTarget.id);
+            }
+
+            private Mesh CreateQubeMesh()
+            {
+                var mesh = new Mesh();
+                Vector3[] vertices = {
+                    // 前面
+                    new Vector3(-0.5f, -0.5f,  0.5f),
+                    new Vector3( 0.5f, -0.5f,  0.5f),
+                    new Vector3( 0.5f,  0.5f,  0.5f),
+                    new Vector3(-0.5f,  0.5f,  0.5f),
+                    // 后面
+                    new Vector3(-0.5f, -0.5f, -0.5f),
+                    new Vector3( 0.5f, -0.5f, -0.5f),
+                    new Vector3( 0.5f,  0.5f, -0.5f),
+                    new Vector3(-0.5f,  0.5f, -0.5f),
+                };
+                int[] indices = {
+                    // 前
+                    0, 2, 1, 0, 3, 2,
+                    // 右
+                    1, 2, 6, 6, 5, 1,
+                    // 后
+                    5, 6, 7, 7, 4, 5,
+                    // 左
+                    4, 7, 3, 3, 0, 4,
+                    // 上
+                    3, 7, 6, 6, 2, 3,
+                    // 下
+                    4, 0, 1, 1, 5, 4
+                };
+                mesh.vertices = vertices;
+                mesh.triangles = indices;
+                return mesh;
+            }
         }
     }
 }
