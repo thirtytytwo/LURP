@@ -20,6 +20,8 @@ namespace UnityEngine.Rendering.Universal
 
         [SerializeField] internal bool CharacterShadowSwitch = false;
         [SerializeField] internal bool SoftShadow = false;
+        [SerializeField] internal Color ShadowColor = Color.black;
+        [SerializeField][Range(0f, 1f)] internal float ShadowOpacity = 0.5f;
         [SerializeField] internal Quality ShadowQuality = Quality.LOW;
         [SerializeField][Range(0f, 1f)] internal float ShadowDepthBias = 0.5f;
     }
@@ -191,14 +193,18 @@ namespace UnityEngine.Rendering.Universal
             private Material mShadowCombineMaterial;
             //RenderTarget
             private RenderTargetHandle mTarget;
+            private RenderTargetIdentifier mDepthHandler;
 
             private Mesh mQubeMesh;
 
             private int mCharacterID;
             private int mCharacterShadowmapSizeID;
+            private int mShadowCombineParamID;
             
             private float mShadowDepthBias;
             private float mCharacterShadowmapSize;
+            private float mShadowOpacity;
+            private Color mShadowColor;
 
             public LSoftScreenShadowPass(Material mat)
             {
@@ -206,6 +212,7 @@ namespace UnityEngine.Rendering.Universal
                 mTarget.Init("_LScreenShadowTexture");
                 mCharacterID = Shader.PropertyToID("_CharacterID");
                 mCharacterShadowmapSizeID = Shader.PropertyToID("_CharacterShadowmapSize");
+                mShadowCombineParamID = Shader.PropertyToID("_ShadowCombineParam");
             }
 
             public void Setup(LCharacterShadowSetting setting)
@@ -222,27 +229,26 @@ namespace UnityEngine.Rendering.Universal
                         mCharacterShadowmapSize = 1024;
                         break;
                 }
+                
+                mShadowColor = setting.ShadowColor;
+                mShadowOpacity = setting.ShadowOpacity;
             }
             public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
             {
                 var desc = renderingData.cameraData.cameraTargetDescriptor;
-                // desc.width >>= 1;
-                // desc.height >>= 1;
                 desc.depthBufferBits = 0;
                 desc.msaaSamples = 1;
                 desc.graphicsFormat = RenderingUtils.SupportsGraphicsFormat(GraphicsFormat.R8_UNorm, FormatUsage.Linear | FormatUsage.Render)
                     ? GraphicsFormat.R8_UNorm
                     : GraphicsFormat.B8G8R8A8_UNorm;
-                
                 cmd.GetTemporaryRT(mTarget.id, desc, FilterMode.Bilinear);
+                mDepthHandler = renderingData.cameraData.renderer.cameraColorTarget;
             }
 
             public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
             {
-                ConfigureTarget(mTarget.Identifier());
+                ConfigureTarget(mTarget.Identifier(), mDepthHandler);
                 ConfigureClear(ClearFlag.None, Color.clear);
-                ConfigureColorStoreAction(RenderBufferStoreAction.Store);
-                ConfigureDepthStoreAction(RenderBufferStoreAction.DontCare);
             }
 
             public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -252,6 +258,7 @@ namespace UnityEngine.Rendering.Universal
                 var cmd = CommandBufferPool.Get();
                 var cameraData = renderingData.cameraData;
                 var shadowData = CharacterShadowData.characterShadowList;
+                var destination = renderingData.cameraData.renderer.GetCameraColorFrontBuffer(cmd);
                 using (new ProfilingScope(cmd, mShadowCombineSampler))
                 {
                     cmd.SetViewProjectionMatrices(Matrix4x4.identity, Matrix4x4.identity);
@@ -264,6 +271,11 @@ namespace UnityEngine.Rendering.Universal
                         cmd.SetGlobalVector(mCharacterShadowmapSizeID, new Vector4(mCharacterShadowmapSize, mCharacterShadowmapSize, 1.0f/mCharacterShadowmapSize, 1.0f/mCharacterShadowmapSize));
                         cmd.DrawMesh(mQubeMesh, shadow.worldMatrix, mShadowCombineMaterial, 0, 1);
                     }
+                    
+                    cmd.SetGlobalVector(mShadowCombineParamID, new Vector4(mShadowColor.r, mShadowColor.g, mShadowColor.b, mShadowOpacity));
+                    cmd.SetRenderTarget(destination);
+                    cmd.DrawMesh(RenderingUtils.fastfullscreenMesh, Matrix4x4.identity, mShadowCombineMaterial, 0, 2);
+                    cameraData.renderer.SwapColorBuffer(cmd);
                 }
                 cmd.SetGlobalTexture(mTarget.id, mTarget.Identifier());
                 context.ExecuteCommandBuffer(cmd);

@@ -6,7 +6,7 @@ Shader "LURP/Feature/LScreenShadow"
         LOD 100
         Pass
         {
-            Name "Screen Shadow"
+            Name "Background Shadow"
             Blend Off
             ZWrite Off
             Cull Off
@@ -121,14 +121,19 @@ Shader "LURP/Feature/LScreenShadow"
         {
             Name"Per Character Shadow"
             ZWrite Off
-            ZTest Always
+            ZTest Off
             Cull Off
-            
+            Stencil
+            {
+                Ref 3
+                Comp NotEqual
+                Pass Keep
+            }
             HLSLPROGRAM
-
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
             struct Attribute
             {
                 float4 positionOS : POSITION;
@@ -150,7 +155,8 @@ Shader "LURP/Feature/LScreenShadow"
             
             float3 TransformWorldToCharacterShadow(float3 positionWS)
             {
-                return mul(_WorldToShadowMatrix[_CharacterID], float4(positionWS, 1.0f));
+                float4 ret = mul(_WorldToShadowMatrix[_CharacterID], float4(positionWS, 1.0f));
+                return ret.xyz / ret.www; 
             }
 
             half SampleCharacterShadowmap(float3 pos)
@@ -158,7 +164,7 @@ Shader "LURP/Feature/LScreenShadow"
                 half val = SAMPLE_TEXTURE2D(_CharacterShadowmap, sampler_PointClamp, float2(pos.xy)).r;
                 half ret = smoothstep(0, 0.1f, pos.z - val);
                 ret = step(0.99f, ret);
-                return ret;
+                return BEYOND_SHADOW_FAR(pos) ? 1.0 : ret;
             }
             Varying vert(Attribute i)
             {
@@ -191,12 +197,12 @@ Shader "LURP/Feature/LScreenShadow"
                 float clampZMax = 1;
                 bool flag = (shadowCoord.x >= clampXMin && shadowCoord.x <= clampXMax) &&
                     (shadowCoord.y >= clampYMin && shadowCoord.y <= clampYMax);
-                if (!flag) return half4(1,0,0,1);
-
+                if (!flag) clip(-1);
+                
                 //处理shadowmap空间坐标，准备软阴影
                 //floor操作是确保了现在所以的像素点都落在对应的纹素上，-0.5回到像素中心
-                float2 sampleScreenUV = floor(shadowCoord.xy * _CharacterShadowmapSize.zw + 0.5f) - 0.5f;
-                float2 offset = frac(shadowCoord.xy * _CharacterShadowmapSize.zw + 0.5f);
+                float2 sampleScreenUV = floor(shadowCoord.xy * _CharacterShadowmapSize.xy + 0.5f) - 0.5f;
+                float2 offset = frac(shadowCoord.xy * _CharacterShadowmapSize.xy + 0.5f);
 
                 //因为offset是一个连续的值，所以不存在离散的filter，直接用函数图像做卷积
                 float2 fetchWeightUV0, fetchWeightUV1;
@@ -209,10 +215,10 @@ Shader "LURP/Feature/LScreenShadow"
                 //offset -1/3 ~ 4/3 中心点则是(-1/4. 5/4)
                 fetchOffsetU = float2((2.0f - offset.x) / fetchWeightUV0.x, offset.x / fetchWeightUV1.x) + float2(-1.0f, 1.0f);
                 fetchOffsetV = float2((2.0f - offset.y) / fetchWeightUV0.y, offset.y / fetchWeightUV1.y) + float2(-1.0f, 1.0f);
-                float4 sampleUVOffset = float4(fetchOffsetU, fetchOffsetV) * _CharacterShadowmapSize.xxyy;
+                float4 sampleUVOffset = float4(fetchOffsetU, fetchOffsetV) * _CharacterShadowmapSize.zzww;
                 
-                float4 sampleUV0 = sampleScreenUV.xyxy * _CharacterShadowmapSize.xyxy + sampleUVOffset.xzyz;
-                float4 sampleUV1 = sampleScreenUV.xyxy * _CharacterShadowmapSize.xyxy + sampleUVOffset.xwyw;
+                float4 sampleUV0 = sampleScreenUV.xyxy * _CharacterShadowmapSize.zwzw + sampleUVOffset.xzyz;
+                float4 sampleUV1 = sampleScreenUV.xyxy * _CharacterShadowmapSize.zwzw + sampleUVOffset.xwyw;
 
                 //sample shadowmap 4x
                 float depthVal = shadowCoord.z + _ShadowDepthBias;
@@ -234,6 +240,60 @@ Shader "LURP/Feature/LScreenShadow"
                 
                 //return half4(SampleShadowmap(_MainLightShadowmapTexture, sampler_MainLightShadowmapTexture, shadowCoord), 0.0, 0.0, 1.0);
                 return half4(result, 0, 0, 1);
+            }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name"Combine to Camera"
+            ZWrite Off
+            ZTest Always
+            Cull Off
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+            struct Attribute
+            {
+                float4 positionOS : POSITION;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            float4 _ShadowCombineParam;
+            TEXTURE2D(_LScreenShadowTexture);
+            TEXTURE2D(_CameraColorTexture);
+            SAMPLER(sampler_LinearClamp);
+
+            Varyings vert(Attribute i)
+            {
+                Varyings o;
+                o.positionCS = float4(i.positionOS.x, i.positionOS.y, 0.0f, 1.0f);
+                o.uv = i.positionOS.xy * 0.5f + 0.5f;
+                #if UNITY_UV_STARTS_AT_TOP
+                o.uv.y = 1.0f - o.uv.y;
+                #endif
+                return o;
+            }
+
+            half4 frag(Varyings i) : SV_Target
+            {
+                half4 sourceColor = SAMPLE_TEXTURE2D(_CameraColorTexture, sampler_LinearClamp, i.uv);
+                half shadow = SAMPLE_TEXTURE2D(_LScreenShadowTexture, sampler_LinearClamp, i.uv);
+                half3 resultColor = sourceColor.rgb;
+                if (shadow >= 0.f && shadow < 0.5f)
+                {
+                    shadow = smoothstep(0, 0.5, shadow);
+                    resultColor = lerp(half3(0,0,0) + _ShadowCombineParam.www,_ShadowCombineParam.xyz, shadow) * sourceColor.rgb;
+                }
+                return half4(resultColor, sourceColor.a);
             }
             ENDHLSL
         }

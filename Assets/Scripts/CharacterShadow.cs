@@ -57,8 +57,6 @@ public class CharacterShadow : MonoBehaviour
             }
             
             Matrix4x4 worldMatrix = Matrix4x4.TRS(targetPos, mMainLight.transform.rotation, new Vector3(_BoundingBoxSize.x * 2, _BoundingBoxSize.y * 2, zfar * 2));
-            print("trans" + worldMatrix.rotation);
-            print("scale" + worldMatrix.lossyScale);
             
             CharacterShadowStruct data = new CharacterShadowStruct();
             data.characterID = mCharacterID[i];

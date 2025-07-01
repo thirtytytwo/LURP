@@ -28,5 +28,7 @@ Material:
     m_Floats:
     - _CharacterID: -1
     - _Outline: 0
+    - _ReceiveShadow: 0
+    - _Stencil: 3
     m_Colors: []
   m_BuildTextureStacks: []

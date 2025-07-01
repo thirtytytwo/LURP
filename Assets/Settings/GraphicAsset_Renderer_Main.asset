@@ -1,20 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-2911356205690893871
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cb78c03f1287b844997a4e1573701f47, type: 3}
-  m_Name: LScreenSpaceShadow
-  m_EditorClassIdentifier: 
-  m_Active: 0
-  m_ScreenSpaceShadowMaterial: {fileID: 2100000, guid: abea1aa944d9aba44af77daaa697263d,
-    type: 2}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -31,10 +16,9 @@ MonoBehaviour:
     debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7,
       type: 3}
   m_RendererFeatures:
-  - {fileID: -2911356205690893871}
   - {fileID: 1696152651223619336}
   - {fileID: 6772337127372023867}
-  m_RendererFeatureMap: d1492ab9f4c898d708570585d9f189173be83268bc2cfc5d
+  m_RendererFeatureMap: 08570585d9f189173be83268bc2cfc5d
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -108,5 +92,12 @@ MonoBehaviour:
   m_Name: LCharacterShadowCasterFeature
   m_EditorClassIdentifier: 
   m_Active: 1
-  DepthBias: 1
-  NormalBias: 0
+  mCharacterShadowSetting:
+    CharacterShadowSwitch: 0
+    SoftShadow: 0
+    ShadowColor: {r: 1, g: 1, b: 1, a: 1}
+    ShadowOpacity: 0.155
+    ShadowQuality: 1
+    ShadowDepthBias: 0.484
+  ScreenSpaceShadowMaterial: {fileID: 2100000, guid: abea1aa944d9aba44af77daaa697263d,
+    type: 2}

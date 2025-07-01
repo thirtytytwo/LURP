@@ -4,16 +4,16 @@ using UnityEngine;
 
 public class Test : MonoBehaviour
 {
-    Renderer renderer;
+    private Camera camera;
     // Start is called before the first frame update
     void Start()
     {
-        renderer = GetComponent<Renderer>();
+        camera = GetComponent<Camera>();
     }
 
     // Update is called once per frame
     void Update()
     {
-        print(gameObject.name + "has renderingLayerMask:" +renderer.renderingLayerMask);
+        Debug.Log("camera" + camera.projectionMatrix);
     }
 }
